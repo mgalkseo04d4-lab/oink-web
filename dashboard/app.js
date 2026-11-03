@@ -3,10 +3,13 @@
 const TOPIC_STATUS = "oink/gateway/status";
 const TOPIC_TELE = "oink/gateway/telemetry";
 const STALE_MS = 10000;
+// 시험값 배지: 펌웨어가 가짜·시험 값을 보내는 동안 true. 실측으로 바꾸면 false로.
+const FAKE_B1 = true;   // #1 oink_node1_pig USE_FAKE_SENSORS 1 → CO₂·심부온도 가짜값
+const FAKE_ODOR = true; // 냄새 지수 = 게이트웨이 가변저항(pot_v 0~3.3V → 0~100) 시험값
 const $ = (id) => document.getElementById(id);
 
 let client = null;
-let gw = { online: false, ip: null, tele: null, lastSeen: 0 };
+let gw = { online: false, ip: null, tele: null, lastSeen: 0, diag: null };
 let linkSt = OinkLink.makeLink();
 let gwSt = OinkLink.makeGw();
 let chartSt = OinkChart.makeChart();
@@ -28,23 +31,34 @@ function fmt(v, d = 1) {
 function setCard(id, value, tone = "", sub) {
   const el = $(id);
   el.className = `card stat ${tone}`;
+  el.title = value === "수신 끊김" ? `보드 값이 ${OinkLink.BOARD_STALE_MS / 1000}초 넘게 안 옴` : "";
   el.querySelector(".value").textContent = value;
   if (sub !== undefined) el.querySelector(".sub").textContent = sub || "";
 }
 
 function render() {
   const fresh = gw.lastSeen && Date.now() - gw.lastSeen < STALE_MS;
-  const b1 = fresh ? gw.tele?.board1 : null;
-  const b2 = fresh ? gw.tele?.board2 : null;
-  const off = "끊김";
+  const now = Date.now();
+  // 게이트웨이 자체가 끊기면 "끊김"(빨강), 게이트웨이는 살아 있는데 보드만 15초 넘게 안 오면 "수신 끊김"(회색)
+  const s1 = fresh && OinkLink.boardStale(gw.tele?.board1, linkSt.lastRxAt[0], now);
+  const s2 = fresh && OinkLink.boardStale(gw.tele?.board2, linkSt.lastRxAt[1], now);
+  const b1 = fresh && !s1 ? gw.tele.board1 : null;
+  const b2 = fresh && !s2 ? gw.tele.board2 : null;
+  const off1 = s1 ? "수신 끊김" : "끊김", off2 = s2 ? "수신 끊김" : "끊김";
+  const t1 = s1 ? "stale" : "bad", t2 = s2 ? "stale" : "bad";
 
-  setCard("c-co2", !b1 ? off : b1.co2_status !== 1 ? "예열 중" : `${fmt(b1.co2_ppm, 0) ?? "—"} ppm`, b1 ? "" : "bad");
-  setCard("c-odor", !b1 ? off : b1.odor_index == null ? "센서 안정화 중" : `${fmt(b1.odor_index, 1)}`,
-    !b1 ? "bad" : ""); // 시험 중 odor_index 0~100이라 냄새 경고는 띄우지 않음
-  setCard("c-t1", !b1 ? off : fmt(b1.temp1_c) != null ? `${fmt(b1.temp1_c)} ℃` : "센서 오류", b1 ? "" : "bad");
-  setCard("c-t2", !b2 ? off : fmt(b2.temp2_c) != null ? `${fmt(b2.temp2_c)} ℃` : "센서 오류", b2 ? "" : "bad");
-  setCard("c-heat", !b2 ? off : b2.heater_on ? "ON" : b2.reasons ? "안전 OFF" : "OFF",
-    !b2 ? "bad" : b2.heater_on ? "warn" : "", b2?.reasons ? `강제 OFF 코드 ${b2.reasons}` : "");
+  setCard("c-co2", !b1 ? off1 : b1.co2_status !== 1 ? "예열 중" : `${fmt(b1.co2_ppm, 0) ?? "—"} ppm`, b1 ? "" : t1,
+    b1 ? `co2_status ${b1.co2_status ?? "—"}${b1.err ? ` · ${OinkLink.errText(b1.err)}` : ""}` : "");
+  // 시험 중 odor_index 0~100이라 냄새 경고는 띄우지 않음
+  setCard("c-odor", !b1 ? off1 : b1.odor_index == null ? "센서 안정화 중" : `${fmt(b1.odor_index, 1)}`, !b1 ? t1 : "",
+    typeof gw.tele?.pot_v === "number" ? `pot_v ${gw.tele.pot_v.toFixed(2)} V · 시험 범위 0~100` : "시험 범위 0~100");
+  setCard("c-t1", !b1 ? off1 : fmt(b1.temp1_c) != null ? `${fmt(b1.temp1_c)} ℃` : "센서 오류", b1 ? "" : t1);
+  setCard("c-t2", !b2 ? off2 : fmt(b2.temp2_c) != null ? `${fmt(b2.temp2_c)} ℃` : "센서 오류", b2 ? "" : t2);
+  const ft = OinkLink.faultText(b2);
+  setCard("c-heat", !b2 ? off2 : b2.heater_on ? "ON" : ft ? "안전 OFF" : "OFF",
+    !b2 ? t2 : b2.heater_on ? "warn" : ft ? "bad" : "",
+    b2 ? `${ft || "정상"} · mode ${b2.mode ?? "—"}${b2.fault != null ? ` · fault ${b2.fault}` : ""} · err ${b2.err ?? b2.reasons ?? "—"}` : "");
+  for (const [id, on] of [["bd-co2", FAKE_B1], ["bd-t1", FAKE_B1], ["bd-odor", FAKE_ODOR], ["bd-dco2", FAKE_B1], ["bd-dt1", FAKE_B1]]) $(id).hidden = !on;
 
   const online = gw.online && fresh;
   let s = `게이트웨이 ${online ? "온라인" : "오프라인"}`;
@@ -155,7 +169,7 @@ const demoMs = () => (demoWide ? OinkDemo.C.WIDE_MS : OinkDemo.C.WINDOW_MS);
 
 function demoValue(key) {
   const now = Date.now(), b1 = gw.tele?.board1;
-  if (OinkDemo.isStale(demoSt, gw.tele, now)) return { text: "끊김", off: true };
+  if (OinkDemo.isStale(demoSt, gw.tele, now)) return { text: gw.lastSeen && now - gw.lastSeen < STALE_MS ? "수신 끊김" : "끊김", off: true };
   if (key === "co2" && b1.co2_status !== 1) return { text: "예열 중", off: true };
   const v = key === "co2" ? b1.co2_ppm : b1.temp1_c;
   return typeof v === "number" && Number.isFinite(v) ? { text: v.toFixed(DEMO[key].d), v } : { text: "센서 오류", off: true };
@@ -236,8 +250,14 @@ function renderEsp() {
   const rssi = fmt(t?.rssi, 0);
   setText($("g-wifi"), rssi == null ? "—" : `${rssi} dBm${t.rssi < L.C.RSSI_BAD ? " (약함)" : ""} · 채널 ${t.ch ?? "—"}`,
     L.rssiTone(rssi == null ? null : t.rssi));
+  const d = { ...(gw.diag || {}), ...(t || {}) }; // 진단: status(retained, 접속 때) + telemetry에 있으면 그걸 우선
+  const rr = d.reset_reason;
+  setText($("g-reset"), L.resetText(rr), rr === 4 || (rr >= 5 && rr <= 7) || rr === 9 ? "bad" : "");
+  setText($("g-recon"), d.reconnects == null ? "—" : `Wi-Fi 재연결 ${d.reconnects}회 · 끊김 ${d.wifi_disc ?? "—"}회 · MQTT 접속 ${d.mqtt_conns ?? "—"}회`,
+    d.reconnects > 0 || d.wifi_disc > 0 ? "warn" : "");
+  setText($("g-disc"), L.wifiReasonText(d.wifi_disc_reason), d.wifi_disc_reason ? "warn" : "");
   const leak = L.heapLeak(gwSt);
-  setText($("g-heap"), t?.free_heap == null ? "—" : `${Math.round(t.free_heap / 1024)} KB 여유${leak ? " · 메모리 누수 의심" : ""}`,
+  setText($("g-heap"), t?.free_heap == null ? "—" : `${Math.round(t.free_heap / 1024)} KB 여유 (free_heap ${t.free_heap} B)${leak ? " · 메모리 누수 의심" : ""}`,
     leak ? "bad" : "");
 
   for (const i of [0, 1]) {
@@ -335,6 +355,7 @@ function onMessage(topic, buf) {
   if (topic === TOPIC_STATUS) {
     gw.online = !!msg.online;
     gw.ip = msg.ip || gw.ip;
+    gw.diag = msg; // reset_reason·wifi_disc·wifi_disc_reason·reconnects·mqtt_conns (게이트웨이 diagJson)
   } else if (topic === TOPIC_TELE) {
     const now = Date.now();
     gw.tele = msg;
@@ -359,7 +380,7 @@ function showLogin(err) {
 // 테스트용으로도 쓰도록 노출: oinkConnect(주소, 아이디, 비밀번호)
 function oinkConnect(url, username, password, auto = false) {
   if (client) client.end(true);
-  gw = { online: false, ip: null, tele: null, lastSeen: 0 };
+  gw = { online: false, ip: null, tele: null, lastSeen: 0, diag: null };
   linkSt = OinkLink.makeLink();
   gwSt = OinkLink.makeGw();
   chartSt = OinkChart.makeChart();

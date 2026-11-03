@@ -86,4 +86,23 @@ assert.equal(L.fmtUptime(42 * 60000), "42분");
 assert.equal(L.gwAgeTone(4000), "ok");
 assert.equal(L.gwAgeTone(10000), "warn");
 assert.equal(L.gwAgeTone(16000), "bad");
+// #2 fault 문구 (게이트웨이 fault_text)
+assert.equal(L.faultText({ fault: 1, fault_text: "sensor", err: 257 }), "센서 오류 (온도 읽기 실패)");
+assert.equal(L.faultText({ fault: 2, fault_text: "overheat" }), "과열 55℃ 래치");
+assert.equal(L.faultText({ fault: 3, fault_text: "timeout" }), "연속 가열 상한(30분) — 10분 휴지");
+assert.equal(L.faultText({ fault: 4, fault_text: "rate" }), "상승률 이상 (가열 5분에 +1℃ 미만)");
+assert.equal(L.faultText({ fault: 0, fault_text: "ok" }), "");
+assert.equal(L.faultText({ fault: 6, fault_text: null }), "fault 코드 6");
+assert.equal(L.faultText({ fault: 7, fault_text: "weird" }), "weird (코드 7)");
+assert.equal(L.faultText({ reasons: 257 }), "오류: 온도 센서"); // fault 필드 없는 옛 펌웨어: 하위 비트
+assert.equal(L.errText(0b10011), "오류: 온도 센서, CO₂ 센서, 과열");
+assert.equal(L.resetText(6), "태스크 WDT(loop 60초 멈춤) (6)");
+assert.equal(L.resetText(undefined), "—");
+assert.equal(L.wifiReasonText(201), "AP 못 찾음 (201)");
+assert.equal(L.wifiReasonText(0), "없음");
+// 보드 15초 수신 끊김
+assert.equal(L.boardStale({ seq: 1 }, 1000, 16000), false);
+assert.equal(L.boardStale({ seq: 1 }, 1000, 16001), true);
+assert.equal(L.boardStale(null, 1000, 2000), true);
+assert.equal(L.boardStale({ seq: 1 }, 0, 2000), true);
 console.log("linkcheck ok");

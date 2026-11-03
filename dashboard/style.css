@@ -16,6 +16,9 @@ header { display: flex; justify-content: space-between; align-items: center; gap
 .stat.warn { border-color: #f0b07a; }
 .stat.warn .value { color: var(--orange); }
 .stat.bad .value { color: var(--bad); }
+.stat.stale { background: #f1f3f6; }
+.stat.stale .value { color: var(--faint); }
+.badge { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 18px; vertical-align: middle; background: #fff4d6; color: #7a4a00; border: 1px solid #f0d58a; }
 .status { font-size: 14px; color: var(--muted); }
 .status.on::before { content: "● "; color: var(--ok); }
 .status.off::before { content: "● "; color: var(--bad); }
@@ -87,14 +90,14 @@ button.ghost { background: #fff; border: 1px solid var(--line); color: var(--tex
 .demo { margin-top: 12px; }
 .pane-val { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 640px) { .pane-val { grid-template-columns: 1fr; } }
-.dv { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 8px; border-radius: 12px; background: var(--plot); color: var(--text); border: 1px solid var(--line); transition: background .6s; cursor: pointer; font: inherit; }
+.dv { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 12px 8px; border-radius: 12px; background: var(--plot); color: var(--text); border: 1px solid var(--line); transition: background .6s; cursor: pointer; font: inherit; }
 .dv:hover, .dv:focus-visible { border-color: var(--primary); }
-.dv .dh { color: var(--faint); font-size: 13px; margin-top: 6px; }
-.dv .dl { color: var(--muted); font-size: clamp(16px, 2.4vw, 24px); font-weight: 600; }
-.dv .dn { font-size: clamp(64px, 12vw, 132px); font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.dv .du { color: var(--muted); font-size: clamp(16px, 2.4vw, 24px); }
+.dv .dh { color: var(--faint); font-size: 12px; margin-top: 4px; }
+.dv .dl { color: var(--muted); font-size: 13px; font-weight: 600; }
+.dv .dn { font-size: 28px; font-weight: 700; line-height: 1.2; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.dv .du { color: var(--muted); font-size: 13px; }
 .dv.pulse { background: #eef4fd; }
-.dv.off .dn { color: var(--faint); font-size: clamp(40px, 7vw, 80px); }
+.dv.off .dn { color: var(--faint); font-size: 22px; }
 .dctl { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .seg { display: flex; gap: 6px; }
 .seg button { background: #fff; color: var(--text); border: 1px solid var(--line); padding: 7px 12px; font-size: 14px; }

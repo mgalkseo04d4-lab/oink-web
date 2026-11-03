@@ -34,8 +34,8 @@
       <p id="gwStatus" class="status off">게이트웨이 대기 중</p>
       <section class="card demo" id="demo" aria-label="시연">
         <div id="pane-val" class="pane-val">
-          <button type="button" class="dv" id="dv-co2" data-key="co2"><span class="dl">CO₂</span><span class="dn">—</span><span class="du">ppm</span><span class="dh">눌러서 그래프 보기</span></button>
-          <button type="button" class="dv" id="dv-t1" data-key="t1"><span class="dl">심부 온도</span><span class="dn">—</span><span class="du">℃</span><span class="dh">눌러서 그래프 보기</span></button>
+          <button type="button" class="dv" id="dv-co2" data-key="co2"><span class="dl">CO₂ <span class="badge" id="bd-dco2" title="펌웨어 시험값 — 실측 아님">시험값</span></span><span class="dn">—</span><span class="du">ppm</span><span class="dh">눌러서 그래프 보기</span></button>
+          <button type="button" class="dv" id="dv-t1" data-key="t1"><span class="dl">심부 온도 <span class="badge" id="bd-dt1" title="펌웨어 시험값 — 실측 아님">시험값</span></span><span class="dn">—</span><span class="du">℃</span><span class="dh">눌러서 그래프 보기</span></button>
         </div>
         <div id="pane-graph" class="pane-graph" hidden>
           <div class="dctl">
@@ -53,11 +53,11 @@
         </div>
       </section>
       <div class="grid">
-        <div class="card stat" id="c-co2"><div class="label">CO₂ (분해 활성)</div><div class="value">—</div></div>
-        <div class="card stat" id="c-odor"><div class="label">냄새 지수 (H₂S)</div><div class="value">—</div><div class="sub">시험 범위 0~100</div></div>
-        <div class="card stat" id="c-t1"><div class="label">심부 온도</div><div class="value">—</div></div>
-        <div class="card stat" id="c-t2"><div class="label">패드 온도</div><div class="value">—</div></div>
-        <div class="card stat" id="c-heat"><div class="label">히터</div><div class="value">—</div><div class="sub"></div></div>
+        <div class="card stat" id="c-co2"><div class="label" title="board1.co2_ppm">CO₂ (분해 활성) <span class="badge" id="bd-co2" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub"></div></div>
+        <div class="card stat" id="c-odor"><div class="label" title="board1.odor_index">냄새 지수 (H₂S) <span class="badge" id="bd-odor" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub">시험 범위 0~100</div></div>
+        <div class="card stat" id="c-t1"><div class="label" title="board1.temp1_c">심부 온도 <span class="badge" id="bd-t1" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div></div>
+        <div class="card stat" id="c-t2"><div class="label" title="board2.temp2_c">패드 온도</div><div class="value">—</div></div>
+        <div class="card stat" id="c-heat"><div class="label" title="board2.heater_on · fault_text · mode · err">히터</div><div class="value">—</div><div class="sub"></div></div>
       </div>
       <h2 class="sec">ESP32 상태</h2>
       <div class="grid2">
@@ -68,6 +68,9 @@
             <dt>업타임</dt><dd id="g-up">—</dd>
             <dt>Wi-Fi</dt><dd id="g-wifi">—</dd>
             <dt>메모리</dt><dd id="g-heap">—</dd>
+            <dt title="reset_reason">리셋 원인</dt><dd id="g-reset">—</dd>
+            <dt title="reconnects · wifi_disc · mqtt_conns">재연결</dt><dd id="g-recon">—</dd>
+            <dt title="wifi_disc_reason">마지막 끊김</dt><dd id="g-disc">—</dd>
           </dl>
         </div>
         <div class="card info">
