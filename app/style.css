@@ -128,3 +128,40 @@ input[type=range] { width: 100%; accent-color: var(--primary); }
   position: absolute; top: 2px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 4px;
   border-radius: 999px; background: var(--critical); color: #fff; font-size: .62rem; line-height: 17px; text-align: center;
 }
+
+/* ---- 탭 가능한 카드·실시간·예측 ---- */
+.tap { cursor: pointer; }
+.tap:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.badge.demo { background: var(--primary); color: #fff; border-color: transparent; }
+.stat .num.act { color: var(--text2); font-weight: 700; }
+.stat .num.act.low { color: var(--critical); }
+.stat .num.act.high, .stat .num.act.ok { color: var(--good); }
+.act-line { margin: 0; font-weight: 800; color: var(--text); }
+.act-line.low { color: var(--critical); }
+.act-line.ok, .act-line.high { color: var(--good); }
+.muted.tiny { font-size: .7rem; }
+.big.live { margin: 0; font-size: 3rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.big.live small { font-size: 1rem; color: var(--muted); margin-left: 4px; }
+.delta { margin: 0; font-size: 1.4rem; font-weight: 800; color: var(--text2); font-variant-numeric: tabular-nums; }
+.delta.up { color: var(--critical); }
+.delta.down { color: #2563eb; }
+.spark .sp-pred { stroke: var(--text2); stroke-width: 2; stroke-dasharray: 5 4; fill: none; }
+.spark .sp-real { stroke: var(--primary); stroke-width: 2.5; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.spark .sp-now { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.spark .sp-base { stroke: var(--text2); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.spark .sp-lbl { font-size: 11px; font-weight: 800; }
+.num-in { width: 96px; padding: 6px 8px; text-align: right; }
+.center { text-align: center; }
+#liveBack { flex: 0 0 auto; }
+.src.test { background: var(--warning-soft); color: var(--warning); }
+.toast {
+  position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 20;
+  width: min(440px, calc(100% - 32px)); padding: 14px 16px; border-radius: 16px;
+  background: var(--critical); color: #fff; font-weight: 800; font-size: 1.15rem; line-height: 1.45; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+.toast.ok { background: var(--good); }
+.list li.ev.hot_on { background: var(--critical-soft); color: var(--critical); font-weight: 700; }
+.list li.ev.hot_off { background: var(--good-soft); color: var(--good); }
+.src { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: .62rem; font-weight: 800; }
+.src.real { background: var(--good-soft); color: var(--good); }
+.src.model { background: var(--primary-soft); color: var(--warning); }

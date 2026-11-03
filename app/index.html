@@ -33,6 +33,7 @@
     </form>
 
     <section id="app" hidden>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
       <header class="topbar">
         <div>
           <p class="kicker">OINK</p>
@@ -90,15 +91,35 @@
         </article>
 
         <div class="grid2">
-          <article class="card stat" id="cCo2"><p class="kicker">CO₂</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p></article>
-          <article class="card stat" id="cTemp"><p class="kicker">심부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p></article>
-          <article class="card stat"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p class="num">시험 범위 0~100</p></article>
-          <article class="card stat"><p class="kicker">분해 진행</p><div class="bar"><div id="progBar"></div></div><p id="progText" class="num">음식물을 넣으면 보여요</p><p id="progTrend" class="num"></p><p class="num tiny">가상 시나리오 기반 추정</p></article>
+          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker">CO₂</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> 눌러서 그래프</p></article>
+          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker">심부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> 눌러서 그래프</p></article>
+          <article class="card stat"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p class="num">0~100</p><p class="num tiny"><span class="src test">시험값</span> MQ 예열 중</p></article>
+          <article class="card stat tap" id="cProg" role="button" tabindex="0" aria-label="예측과 실측 CO₂ 비교 그래프 보기"><p class="kicker">분해 진행 <span class="badge demo" hidden>시연 배속</span></p><div class="bar"><div id="progBar"></div></div><p id="progText" class="num">음식물을 넣으면 보여요</p><p id="progAct" class="num act"></p><p id="progTrend" class="num"></p><p class="num tiny"><span class="src model">모델 추정치</span> 눌러서 비교</p></article>
         </div>
+        <div class="row" id="homeFeed"><button type="button" data-size="중" class="primary wide">🍽 음식물 넣었어요</button></div>
+        <p id="homeFeedMsg" class="muted center"></p>
+      </div>
+
+      <!-- 실시간 그래프(홈 CO₂·심부온도 카드에서 진입) -->
+      <div id="tab-live" class="tab" role="region" aria-label="실시간 그래프" hidden>
+        <div class="row between"><button type="button" id="liveBack" class="ghost small">← 홈</button><span id="liveSpan" class="badge">최근 2분 · 실측</span></div>
+        <article class="card">
+          <p class="kicker" id="liveTitle">CO₂</p>
+          <p class="big live"><span id="liveVal">—</span><small id="liveUnit">ppm</small></p>
+          <p id="liveDelta" class="delta">기준점을 누르면 변화량이 보여요</p>
+          <svg id="gLive" class="spark" viewBox="0 0 320 200" role="img" aria-label="최근 60초 실시간 그래프"></svg>
+          <div class="row"><button type="button" id="liveBase">기준점</button><button type="button" id="liveBaseClr" class="ghost">해제</button><button type="button" id="liveWin" class="ghost">60초</button></div>
+        </article>
       </div>
 
       <!-- 기록 -->
       <div id="tab-log" class="tab" role="tabpanel" aria-labelledby="tb-log" hidden>
+        <article class="card" id="predCard">
+          <div class="card-head"><p class="kicker">예측 vs 실측 CO₂</p><span class="row"><span class="badge demo" hidden>시연 배속 · 이스트 양성 대조</span><span id="ampBadge" class="badge">보정 전</span></span></div>
+          <svg id="gPred" class="spark" viewBox="0 0 320 190" role="img" aria-label="음식물 투입 후 예측 CO₂(점선)와 실측 CO₂(실선)"></svg>
+          <p id="actText" class="act-line">음식물을 넣으면 예측 곡선이 그려져요</p>
+          <p class="muted tiny"><span class="src model">모델 추정치(논문 경향 기반)</span> 점선 예측 = 투입 시점 CO₂ + 정점 증가폭 × 곡선(정점 약 3일차, 7일 감소 — Sustainability 2025, 17, 8041). <span class="src real b1src">실측</span> 실선 = CM1106 값. 분해 활성도 = 실측 증가분 ÷ 예측 증가분(최근 5분 평균).</p>
+        </article>
         <article class="card">
           <div class="card-head"><p class="kicker">CO₂ 추세</p><span class="badge">최근 10분</span></div>
           <svg id="gCo2" class="spark" viewBox="0 0 320 110" role="img" aria-label="CO₂ 최근 10분 추세"></svg>
@@ -137,14 +158,24 @@
         </article>
         <article class="card">
           <div class="card-head"><p class="kicker">히터 조절</p><span id="heatBadge" class="badge">—</span></div>
-          <div class="row between">
-            <span>자동으로 돌리기</span>
-            <button type="button" id="autoToggle" class="toggle on" aria-pressed="true" aria-label="자동 운전"><span class="knob"></span></button>
+          <p class="muted">지금 모드: <strong id="heatMode">—</strong></p>
+          <div class="row">
+            <button type="button" id="autoBtn">자동으로 돌리기</button>
+            <button type="button" id="offBtn" class="danger">히터 끄기</button>
           </div>
-          <button type="button" id="offBtn" class="danger wide">히터 강제로 끄기</button>
-          <label class="row between" for="target"><span>목표 온도</span><strong id="targetVal">37℃</strong></label>
-          <input id="target" type="range" min="30" max="40" step="1" value="37">
           <p id="cmdMsg" class="muted">명령은 기기가 안전을 먼저 확인한 뒤 적용해요. 히터를 강제로 켜는 기능은 없어요.</p>
+          <p id="holdNote" class="banner warn" hidden>뜨거운 음식물 감지 — 앱이 열려 있는 동안 OFF 유지 중</p>
+          <p class="muted tiny">뜨거운 음식물이 감지되면 앱이 히터를 끄고(앱이 열려 있는 동안 OFF 유지), 온도가 안정되면 자동 모드로 되돌려요. 기기 안전 규칙(50℃)이 항상 우선이에요.</p>
+        </article>
+        <article class="card">
+          <p class="kicker">예측 설정</p>
+          <label class="row between" for="amp"><span>예측 정점 증가폭(ppm)</span><input id="amp" class="name num-in" type="number" min="50" max="5000" step="50" inputmode="numeric"></label>
+          <p class="muted tiny">기본 500ppm은 임의 가정(보정 전)이에요. 첫 투입 실측 정점에 맞춰 바꾸면 "보정 후"로 표시돼요.</p>
+          <div class="row between">
+            <span>시연 배속 (7일 → 5분)<br><small class="muted">이스트 컵을 넣는 순간 '음식물 넣기'를 누르세요</small></span>
+            <button type="button" id="demoToggle" class="toggle" aria-pressed="false" aria-label="시연 배속"><span class="knob"></span></button>
+          </div>
+
         </article>
         <article class="card">
           <p class="kicker">홈 화면에 앱으로 설치</p>
