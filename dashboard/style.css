@@ -1,0 +1,116 @@
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+/* 밝은 테마. 글자색은 흰 카드·배경 모두 대비 4.5:1 이상 확인함 */
+:root { --bg: #f5f7fb; --card: #ffffff; --line: #e3e7ef; --text: #1b2330; --muted: #5b6472; --faint: #667080;
+  --ok: #1e7d34; --warn: #9a5b00; --bad: #c62828; --orange: #b5530a; --primary: #c4513b; --plot: #f8fafc; }
+body { margin: 0; font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; background: var(--bg); color: var(--text); }
+main { max-width: 1000px; margin: 0 auto; padding: 20px 16px; }
+h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 8px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.pig-head { width: 36px; height: 36px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 1px 3px rgba(20, 30, 50, .06); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 12px; }
+.stat .label { color: var(--muted); font-size: 13px; }
+.stat .value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+.stat .sub { color: var(--faint); font-size: 12px; margin-top: 4px; min-height: 1em; }
+.stat.warn { border-color: #f0b07a; }
+.stat.warn .value { color: var(--orange); }
+.stat.bad .value { color: var(--bad); }
+.status { font-size: 14px; color: var(--muted); }
+.status.on::before { content: "● "; color: var(--ok); }
+.status.off::before { content: "● "; color: var(--bad); }
+button { background: var(--primary); color: #fff; border: 0; border-radius: 8px; padding: 10px 16px; font-size: 15px; cursor: pointer; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.ghost { background: #fff; border: 1px solid var(--line); color: var(--text); padding: 8px 12px; font-size: 14px; }
+.login { max-width: 380px; margin: 10vh auto 0; display: flex; flex-direction: column; gap: 10px; }
+.login h1 { justify-content: center; }
+.pig-login { width: 64px; height: 64px; align-self: center; }
+.login label { font-size: 13px; color: var(--muted); }
+.login input { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--text); font-size: 16px; }
+.err { color: var(--bad); margin: 0; }
+.test { margin-top: 14px; }
+.test .label { color: var(--muted); font-size: 13px; }
+.test .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.test input { flex: 1; min-width: 140px; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--text); font-size: 15px; }
+.test .sub { color: var(--text); font-size: 14px; margin: 8px 0 0; min-height: 1.2em; }
+.test .echo { color: var(--faint); font-size: 12px; margin: 2px 0 0; min-height: 1em; }
+.test #devName { flex: 0 1 120px; min-width: 90px; }
+.test ul { list-style: none; padding: 0; margin: 6px 0 0; color: var(--faint); font-size: 13px; }
+.test li { padding: 2px 0; }
+.sec { font-size: 15px; color: var(--muted); margin: 22px 0 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 10px; }
+.info .label { color: var(--muted); font-size: 13px; }
+.info dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 10px 0 0; font-size: 14px; }
+.info dt { color: var(--faint); }
+.info dd { margin: 0; }
+.info .sub { color: var(--faint); font-size: 13px; margin: 8px 0 0; }
+.tbl { overflow-x: auto; margin-top: 8px; }
+.tbl table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+.tbl th, .tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tbl thead th { color: var(--faint); font-weight: 400; }
+.info .ok, .ctrl .ok { color: var(--ok); }
+.info .warn, .ctrl .warn { color: var(--warn); }
+.info .bad, .ctrl .bad { color: var(--bad); }
+.sec .hint { font-size: 12px; color: var(--faint); font-weight: 400; margin-left: 6px; }
+/* 보드 제어 */
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 10px; }
+.ctrl .label { color: var(--muted); font-size: 13px; }
+.ctrl .btns { display: flex; gap: 8px; margin-top: 10px; }
+.ctrl .btns button { flex: 1; background: #fff; color: var(--text); border: 1px solid var(--line); font-weight: 600; }
+.ctrl .btns button.sel { background: var(--primary); color: #fff; border-color: var(--primary); }
+.ctrl p { margin: 8px 0 0; font-size: 14px; min-height: 1.1em; }
+.ctrl .state { font-weight: 600; }
+.ctrl .result { font-size: 13px; }
+.ctrl .note { color: var(--faint); font-size: 12px; line-height: 1.5; }
+/* 가변저항 시험 그래프 */
+.charts { display: grid; gap: 14px; margin-top: 10px; }
+.chart { display: grid; gap: 12px; }
+@media (min-width: 640px) { .chart { grid-template-columns: 170px 1fr; align-items: start; } }
+.chart .label { color: var(--muted); font-size: 13px; }
+.chart .big { font-size: 30px; font-weight: 700; margin: 2px 0 8px; }
+.chart .mid { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.chart .flag { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #fde8e8; color: var(--bad); }
+.chart.stale .big, .chart.stale .mid { color: var(--faint); }
+.chart.stale .plot svg { opacity: .6; }
+.plots { display: grid; gap: 10px; min-width: 0; }
+.plot { position: relative; }
+.plot svg { display: block; width: 100%; height: 120px; background: var(--plot); border: 1px solid var(--line); border-radius: 6px; }
+.plot svg.odor { height: 70px; }
+.plot svg .grid { stroke: #e3e7ef; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.plot svg .bandbg { fill: #eef1f6; }
+.plot .axis { color: var(--faint); font-size: 12px; margin-top: 4px; }
+.plot .sw { display: inline-block; width: 12px; height: 8px; background: #d95926; vertical-align: middle; }
+.plot .tip { position: absolute; top: 4px; padding: 2px 6px; border-radius: 4px; background: #fff; border: 1px solid var(--line); font-size: 12px; color: var(--text); pointer-events: none; white-space: nowrap; }
+.login .remember { display: flex; align-items: center; gap: 8px; }
+.login .remember input { width: auto; padding: 0; margin: 0; accent-color: var(--primary); }
+/* 시연 탭: 값(프로젝터용 큰 숫자) · 그래프(추세, 기준점 대비 변화) */
+.demo { margin-top: 12px; }
+.pane-val { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 640px) { .pane-val { grid-template-columns: 1fr; } }
+.dv { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 18px 8px; border-radius: 12px; background: var(--plot); color: var(--text); border: 1px solid var(--line); transition: background .6s; cursor: pointer; font: inherit; }
+.dv:hover, .dv:focus-visible { border-color: var(--primary); }
+.dv .dh { color: var(--faint); font-size: 13px; margin-top: 6px; }
+.dv .dl { color: var(--muted); font-size: clamp(16px, 2.4vw, 24px); font-weight: 600; }
+.dv .dn { font-size: clamp(64px, 12vw, 132px); font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.dv .du { color: var(--muted); font-size: clamp(16px, 2.4vw, 24px); }
+.dv.pulse { background: #eef4fd; }
+.dv.off .dn { color: var(--faint); font-size: clamp(40px, 7vw, 80px); }
+.dctl { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.seg { display: flex; gap: 6px; }
+.seg button { background: #fff; color: var(--text); border: 1px solid var(--line); padding: 7px 12px; font-size: 14px; }
+.seg button.sel { background: var(--primary); color: #fff; border-color: var(--primary); }
+.dg { display: grid; gap: 12px; margin-top: 10px; }
+@media (min-width: 640px) { .dg { grid-template-columns: 190px 1fr; align-items: center; } }
+.dside .dl { color: var(--muted); font-size: 14px; font-weight: 600; }
+.dside .dnow { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dside .ddelta { font-size: 24px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.dside .dref { color: var(--faint); font-size: 12px; margin-top: 2px; }
+.dg.off .dnow, .dg.off .ddelta { color: var(--faint); }
+.dplot { position: relative; min-width: 0; }
+.dplot svg { display: block; width: 100%; height: 220px; background: var(--plot); border: 1px solid var(--line); border-radius: 8px; }
+.dplot svg .grid { stroke: #e3e7ef; stroke-width: 1; }
+.dplot svg .tick { fill: var(--faint); font-size: 11px; }
+.dplot svg .base { stroke: var(--text); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.dplot svg .basel { fill: var(--text); font-weight: 600; }
+.dplot svg .cross { stroke: var(--muted); stroke-width: 1; }
+.dplot .tip { position: absolute; top: 6px; padding: 2px 6px; border-radius: 4px; background: #fff; border: 1px solid var(--line); font-size: 12px; color: var(--text); pointer-events: none; white-space: nowrap; }

@@ -1,0 +1,90 @@
+/* 디자인 토큰은 communication-module gateway-pi4 화면 톤(밝은 회색 바탕, 흰 카드 r18 + 그림자, 알약 배지, 44×24 토글)에 맞춤 */
+:root {
+  color-scheme: light;
+  --page: #f4f6f8; --surface: #fff; --surface-soft: #f8fafc;
+  --text: #18212f; --text2: #586475; --muted: #8791a0;
+  --border: #dce2e8; --gridline: #e9edf2;
+  --primary: #2563eb; --primary-soft: #dbeafe;
+  --good: #15803d; --good-soft: #dcfce7;
+  --warning: #b45309; --warning-soft: #fef3c7;
+  --critical: #c24141; --critical-soft: #fee2e2;
+  --pink: #ffc4d1;
+  --shadow: 0 8px 24px rgba(15, 23, 42, .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d1117; --surface: #161b22; --surface-soft: #1d232c;
+    --text: #f2f5f8; --text2: #b1bac5; --muted: #7d8793;
+    --border: #30363d; --gridline: #2a3038;
+    --primary: #60a5fa; --primary-soft: #172b4d;
+    --good: #4ade80; --good-soft: #12351f;
+    --warning: #fbbf24; --warning-soft: #3b2a0d;
+    --critical: #f87171; --critical-soft: #421b1b;
+    --shadow: 0 8px 24px rgba(0, 0, 0, .24);
+  }
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; background: var(--page); color: var(--text); }
+main {
+  max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;
+  padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+}
+h1 { font-size: 1.25rem; margin: 0; }
+button { font: inherit; border: 1px solid var(--border); background: var(--surface-soft); color: var(--text); border-radius: 12px; padding: 10px 14px; cursor: pointer; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 700; }
+button.danger { background: var(--critical-soft); border-color: transparent; color: var(--critical); font-weight: 700; }
+button.danger.armed { background: var(--critical); color: #fff; }
+button.ghost { background: transparent; }
+button.wide { width: 100%; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+.kicker { margin: 0; color: var(--primary); font-size: .68rem; font-weight: 700; letter-spacing: .12em; }
+.muted { margin: 0; color: var(--muted); font-size: .82rem; }
+.err { margin: 0; color: var(--critical); font-size: .88rem; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > button { flex: 1; }
+.between { justify-content: space-between; }
+.card-head { display: flex; justify-content: space-between; align-items: center; }
+.badge { padding: 5px 9px; border-radius: 999px; font-size: .7rem; font-weight: 700; background: var(--surface-soft); color: var(--text2); border: 1px solid var(--border); }
+.badge.good { background: var(--good-soft); color: var(--good); border-color: transparent; }
+.badge.warn { background: var(--warning-soft); color: var(--warning); border-color: transparent; }
+.badge.bad { background: var(--critical-soft); color: var(--critical); border-color: transparent; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-soft); color: var(--text2); font-size: .8rem; font-weight: 600; }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--critical); }
+.pill.on .dot { background: var(--good); }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.banner { margin: 0; padding: 12px 14px; border-radius: 12px; font-weight: 700; font-size: .9rem; }
+.banner.warn { background: var(--warning-soft); color: var(--warning); }
+.banner.bad { background: var(--critical-soft); color: var(--critical); }
+.login { margin-top: 6vh; }
+.login label { font-size: .8rem; color: var(--text2); }
+.login input, .name { padding: 11px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-soft); color: var(--text); font-size: 16px; }
+.pig-mini { font-size: 2.4rem; }
+.hero { align-items: center; text-align: center; }
+.pig { width: 180px; height: auto; }
+.pig .m { display: none; }
+.pig.sleep .m.sleep, .pig.calm .m.calm, .pig.busy .m.busy, .pig.smelly .m.smelly { display: inline; }
+.pig.sleep .body { opacity: .75; }
+.pig.busy { animation: bob 1.2s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .pig.busy { animation: none; } }
+.bubble { margin: 0; padding: 10px 16px; border-radius: 999px; background: var(--primary-soft); color: var(--text); font-weight: 700; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.stat { padding: 14px 12px; gap: 4px; }
+.stat .word { margin: 0; font-size: 1.05rem; font-weight: 700; }
+.stat .num { margin: 0; font-size: .72rem; color: var(--muted); min-height: 1em; }
+.bar { height: 12px; border-radius: 999px; background: var(--gridline); overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--good); border-radius: 999px; transition: width .4s ease; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: .85rem; color: var(--text2); }
+.list li { display: flex; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: var(--surface-soft); }
+.row > .toggle { flex: 0 0 44px; }
+.toggle { position: relative; width: 44px; height: 24px; padding: 0; border: 0; border-radius: 999px; background: var(--gridline); }
+.toggle .knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s ease; }
+.toggle.on { background: var(--primary); }
+.toggle.on .knob { transform: translateX(20px); }
+input[type=range] { width: 100%; accent-color: var(--primary); }
+.foot .name { flex: 1; font-size: 14px; padding: 8px 10px; }
+.login .remember { display: flex; align-items: center; gap: 8px; }
+.login .remember input { width: auto; padding: 0; margin: 0; accent-color: var(--primary, #2563eb); }

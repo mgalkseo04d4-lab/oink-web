@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Oink</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#f4f6f8">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Oink">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js" defer></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main>
+    <p id="netWarn" class="banner warn" hidden>인터넷 연결이 필요해요 — 연결되면 다시 열어 주세요</p>
+
+    <form id="login" class="card login">
+      <div class="pig-mini" aria-hidden="true">🐷</div>
+      <h1>Oink</h1>
+      <p class="muted">미생물 친구 Oink와 연결해요</p>
+      <label for="user">아이디</label>
+      <input id="user" type="text" autocomplete="username">
+      <label for="pass">비밀번호</label>
+      <input id="pass" type="password" autocomplete="current-password">
+      <label class="remember"><input id="remember" type="checkbox" checked> 이 기기에서 로그인 유지</label>
+      <button type="submit" id="loginBtn" class="primary">연결하기</button>
+      <p id="loginErr" class="err" role="alert" hidden></p>
+    </form>
+
+    <section id="app" hidden>
+      <header class="topbar">
+        <div>
+          <p class="kicker">OINK</p>
+          <h1>우리 집 미생물 친구</h1>
+        </div>
+        <span id="conn" class="pill"><span class="dot"></span><span id="connText">연결 중</span></span>
+      </header>
+
+      <p id="odorBanner" class="banner bad" hidden>냄새가 강해요 — 뚜껑을 열고 환기해 주세요</p>
+
+      <article class="card hero">
+        <svg id="pig" class="pig sleep" viewBox="0 0 200 170" role="img" aria-labelledby="moodText">
+          <g class="body">
+            <ellipse cx="45" cy="45" rx="20" ry="24" fill="#f6a6b8" transform="rotate(-25 45 45)"/>
+            <ellipse cx="155" cy="45" rx="20" ry="24" fill="#f6a6b8" transform="rotate(25 155 45)"/>
+            <circle class="face" cx="100" cy="95" r="68" fill="#ffc4d1"/>
+            <ellipse cx="100" cy="115" rx="30" ry="21" fill="#f6a6b8"/>
+            <ellipse cx="90" cy="115" rx="5" ry="7" fill="#c86b81"/>
+            <ellipse cx="110" cy="115" rx="5" ry="7" fill="#c86b81"/>
+            <circle cx="60" cy="110" r="9" fill="#ff9fb3" opacity=".6"/>
+            <circle cx="140" cy="110" r="9" fill="#ff9fb3" opacity=".6"/>
+          </g>
+          <g class="m sleep"><path d="M66 82 q12 8 24 0 M110 82 q12 8 24 0" stroke="#5b3a44" stroke-width="4" fill="none" stroke-linecap="round"/><text x="150" y="40" font-size="22" fill="#8791a0">z</text><text x="166" y="24" font-size="16" fill="#8791a0">z</text></g>
+          <g class="m calm"><circle cx="78" cy="82" r="6" fill="#3b2a30"/><circle cx="122" cy="82" r="6" fill="#3b2a30"/><path d="M88 142 q12 9 24 0" stroke="#5b3a44" stroke-width="4" fill="none" stroke-linecap="round"/></g>
+          <g class="m busy"><path d="M68 86 q10 -12 20 0 M112 86 q10 -12 20 0" stroke="#3b2a30" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M84 140 q16 16 32 0 z" fill="#5b3a44"/><path d="M170 70 l6 -12 l6 12 l-6 8 z" fill="#60a5fa"/></g>
+          <g class="m smelly"><path d="M68 78 l20 8 M88 78 l-20 8 M112 78 l20 8 M132 78 l-20 8" stroke="#3b2a30" stroke-width="4" stroke-linecap="round"/><path d="M86 146 q14 -10 28 0" stroke="#5b3a44" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M30 120 q8 -10 0 -20 q-8 -10 0 -20 M176 120 q8 -10 0 -20 q-8 -10 0 -20" stroke="#84cc16" stroke-width="4" fill="none" stroke-linecap="round"/></g>
+        </svg>
+        <p id="moodText" class="bubble">쿨쿨 자는 중… 💤</p>
+      </article>
+
+      <div class="grid3">
+        <article class="card stat"><p class="kicker">분해 활성</p><p id="sCo2" class="word">—</p><p id="sCo2n" class="num"></p></article>
+        <article class="card stat"><p class="kicker">냄새</p><p id="sOdor" class="word">—</p><p id="sOdorn" class="num"></p></article>
+        <article class="card stat"><p class="kicker">온도</p><p id="sTemp" class="word">—</p><p id="sTempn" class="num"></p></article>
+      </div>
+
+      <article class="card">
+        <div class="card-head"><p class="kicker">분해 진행</p><span class="badge">추정치</span></div>
+        <div class="bar"><div id="progBar"></div></div>
+        <p id="progText" class="muted">음식물을 넣으면 진행도가 보여요</p>
+      </article>
+
+      <article class="card">
+        <p class="kicker">음식물 넣기</p>
+        <div class="row" id="feedBtns">
+          <button type="button" data-size="소">조금</button>
+          <button type="button" data-size="중">보통</button>
+          <button type="button" data-size="대">많이</button>
+        </div>
+        <p id="feedMsg" class="muted"></p>
+        <ul id="feedList" class="list"></ul>
+      </article>
+
+      <article class="card">
+        <div class="card-head"><p class="kicker">히터 조절</p><span id="heatBadge" class="badge">—</span></div>
+        <div class="row between">
+          <span>자동으로 돌리기</span>
+          <button type="button" id="autoToggle" class="toggle on" aria-pressed="true" aria-label="자동 운전"><span class="knob"></span></button>
+        </div>
+        <button type="button" id="offBtn" class="danger wide">히터 강제로 끄기</button>
+        <label class="row between" for="target"><span>목표 온도</span><strong id="targetVal">37℃</strong></label>
+        <input id="target" type="range" min="30" max="40" step="1" value="37">
+        <p id="cmdMsg" class="muted">명령은 기기가 안전을 먼저 확인한 뒤 적용해요. 히터를 강제로 켜는 기능은 없어요.</p>
+      </article>
+
+      <footer class="row between foot">
+        <input id="devName" class="name" maxlength="12" aria-label="이 기기 이름">
+        <button type="button" id="logout" class="ghost">로그아웃</button>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>

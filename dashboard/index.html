@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oink 대시보드</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+  <script src="link.js" defer></script>
+  <script src="chart.js" defer></script>
+  <script src="demo.js" defer></script>
+  <script src="ctrl.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <form id="login" class="card login">
+      <img class="pig-login" src="oink.png" alt="Oink 돼지 캐릭터" width="64" height="64">
+      <h1>Oink 대시보드</h1>
+      <label for="user">아이디</label>
+      <input id="user" type="text" autocomplete="username">
+      <label for="pass">비밀번호</label>
+      <input id="pass" type="password" autocomplete="current-password">
+      <label class="remember"><input id="remember" type="checkbox" checked> 이 기기에서 로그인 유지</label>
+      <button type="submit" id="loginBtn">로그인</button>
+      <p id="loginErr" class="err" role="alert" hidden></p>
+    </form>
+
+    <section id="dash" hidden>
+      <header>
+        <h1><img class="pig-head" src="oink.png" alt="" width="36" height="36"> Oink 미생물 처리기</h1>
+        <button id="logout" class="ghost">로그아웃</button>
+      </header>
+      <p id="gwStatus" class="status off">게이트웨이 대기 중</p>
+      <section class="card demo" id="demo" aria-label="시연">
+        <div id="pane-val" class="pane-val">
+          <button type="button" class="dv" id="dv-co2" data-key="co2"><span class="dl">CO₂</span><span class="dn">—</span><span class="du">ppm</span><span class="dh">눌러서 그래프 보기</span></button>
+          <button type="button" class="dv" id="dv-t1" data-key="t1"><span class="dl">심부 온도</span><span class="dn">—</span><span class="du">℃</span><span class="dh">눌러서 그래프 보기</span></button>
+        </div>
+        <div id="pane-graph" class="pane-graph" hidden>
+          <div class="dctl">
+            <button type="button" id="backVal" class="ghost">← 값으로</button>
+            <div class="seg"><button type="button" id="winWide" class="ghost">2분 보기</button><button type="button" id="baseSet">기준점 지금</button><button type="button" id="baseClr" class="ghost">기준점 해제</button></div>
+          </div>
+          <div class="dg" id="dg-co2">
+            <div class="dside"><div class="dl">CO₂</div><div class="dnow">—</div><div class="ddelta">—</div><div class="dref"></div></div>
+            <div class="dplot"><svg id="dsv-co2" role="img" aria-label="CO₂ 실시간 추세"></svg><div class="tip" hidden></div></div>
+          </div>
+          <div class="dg" id="dg-t1">
+            <div class="dside"><div class="dl">심부 온도</div><div class="dnow">—</div><div class="ddelta">—</div><div class="dref"></div></div>
+            <div class="dplot"><svg id="dsv-t1" role="img" aria-label="심부 온도 실시간 추세"></svg><div class="tip" hidden></div></div>
+          </div>
+        </div>
+      </section>
+      <div class="grid">
+        <div class="card stat" id="c-co2"><div class="label">CO₂ (분해 활성)</div><div class="value">—</div></div>
+        <div class="card stat" id="c-odor"><div class="label">냄새 지수 (H₂S)</div><div class="value">—</div><div class="sub">시험 범위 0~100</div></div>
+        <div class="card stat" id="c-t1"><div class="label">심부 온도</div><div class="value">—</div></div>
+        <div class="card stat" id="c-t2"><div class="label">패드 온도</div><div class="value">—</div></div>
+        <div class="card stat" id="c-heat"><div class="label">히터</div><div class="value">—</div><div class="sub"></div></div>
+      </div>
+      <h2 class="sec">ESP32 상태</h2>
+      <div class="grid2">
+        <div class="card info">
+          <div class="label">게이트웨이(#3) STA·MQTT</div>
+          <dl>
+            <dt>연결</dt><dd id="g-conn">—</dd>
+            <dt>업타임</dt><dd id="g-up">—</dd>
+            <dt>Wi-Fi</dt><dd id="g-wifi">—</dd>
+            <dt>메모리</dt><dd id="g-heap">—</dd>
+          </dl>
+        </div>
+        <div class="card info">
+          <div class="label">ESP-NOW 링크 (#1·#2 → #3)</div>
+          <div class="tbl">
+            <table>
+              <thead><tr><th>연결</th><th>마지막 수신</th><th>수신율</th><th>손실률</th><th>신호</th></tr></thead>
+              <tbody>
+                <tr id="l-0"><th>#1 돼지머리 → #3</th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr id="l-1"><th>#2 히터 → #3</th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p id="l-bad" class="sub">오류 패킷 —</p>
+        </div>
+      </div>
+      <h2 class="sec">원격 제어</h2>
+      <div class="grid3">
+        <div class="card ctrl" id="k-b2" data-target="b2">
+          <div class="label">#2 히터 제어</div>
+          <div class="btns"><button type="button" data-val="on">ON</button><button type="button" data-val="off">OFF</button><button type="button" data-val="auto">AUTO</button></div>
+          <p class="state">—</p><p class="actual"></p><p class="result" role="status"></p>
+          <p class="note">보드 안전 규칙이 우선합니다. 온도를 읽지 못하거나 50℃를 넘으면 ON을 눌러도 꺼집니다.</p>
+        </div>
+        <div class="card ctrl" id="k-b1" data-target="b1">
+          <div class="label">#1 돼지머리 LED</div>
+          <div class="btns"><button type="button" data-val="on">ON</button><button type="button" data-val="off">OFF</button></div>
+          <p class="state">—</p><p class="actual"></p><p class="result" role="status"></p>
+        </div>
+        <div class="card ctrl" id="k-b3" data-target="b3">
+          <div class="label">#3 게이트웨이 LED</div>
+          <div class="btns"><button type="button" data-val="on">ON</button><button type="button" data-val="off">OFF</button></div>
+          <p class="state">—</p><p class="actual"></p><p class="result" role="status"></p>
+        </div>
+      </div>
+      <h2 class="sec">가변저항 시험 <span class="hint">최근 60초 · 2초 간격</span></h2>
+      <div class="charts">
+        <div class="card chart" id="ch-1">
+          <div class="now">
+            <div class="label">#1 돼지머리 · D0 전압</div>
+            <div class="big" id="v-gas">—</div>
+            <div class="label">냄새 지수</div>
+            <div class="mid" id="v-odor">—</div>
+            <div class="flag" id="f-1" hidden>끊김</div>
+          </div>
+          <div class="plots">
+            <div class="plot"><svg id="s-gas" preserveAspectRatio="none" role="img" aria-label="#1 D0 전압 최근 60초"></svg><div class="axis">0 ~ 3.3 V</div><div class="tip" hidden></div></div>
+            <div class="plot"><svg id="s-odor" class="odor" preserveAspectRatio="none" role="img" aria-label="#1 냄새 지수 최근 60초"></svg><div class="axis">냄새 지수 0 ~ 100</div><div class="tip" hidden></div></div>
+          </div>
+        </div>
+        <div class="card chart" id="ch-2">
+          <div class="now">
+            <div class="label">#2 히터 · 패드 온도</div>
+            <div class="big" id="v-temp">—</div>
+            <div class="label">히터</div>
+            <div class="mid" id="v-heat">—</div>
+            <div class="flag" id="f-2" hidden>끊김</div>
+          </div>
+          <div class="plots">
+            <div class="plot"><svg id="s-temp" preserveAspectRatio="none" role="img" aria-label="#2 패드 온도 최근 60초, 아래 띠는 히터 ON 구간"></svg><div class="axis">20 ~ 80 ℃ · 아래 띠 <span class="sw"></span> = 히터 ON</div><div class="tip" hidden></div></div>
+          </div>
+        </div>
+        <div class="card chart" id="ch-3">
+          <div class="now">
+            <div class="label">#3 게이트웨이 · 가변저항</div>
+            <div class="big" id="v-pot">—</div>
+            <div class="flag" id="f-3" hidden>끊김</div>
+          </div>
+          <div class="plots">
+            <div class="plot"><svg id="s-pot" preserveAspectRatio="none" role="img" aria-label="#3 가변저항 전압 최근 60초"></svg><div class="axis">0 ~ 3.3 V</div><div class="tip" hidden></div></div>
+          </div>
+        </div>
+      </div>
+      <form id="test" class="card test">
+        <div class="label">클라우드 연결 테스트 (다른 기기끼리)</div>
+        <div class="row">
+          <input id="devName" type="text" aria-label="이 기기 이름" placeholder="이 기기 이름">
+          <input id="testText" type="text" value="ping" aria-label="테스트 메시지">
+          <button type="submit" id="testBtn">테스트 전송</button>
+        </div>
+        <p id="testResult" class="sub" role="status"></p>
+        <p id="testEcho" class="echo"></p>
+        <ul id="testLog"></ul>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
