@@ -241,7 +241,7 @@ function render() {
     predGraph($("gPred"), feedTs, now);
     $("actText").textContent = !feedTs ? "음식물을 넣으면 예측 곡선이 그려져요" : actLine;
     $("actText").className = `act-line ${act?.key || ""}`;
-    spark($("gCo2"), recent(co2Hist, now, GRAPH_MS), "ppm", "", "#e0782f", now);
+    spark($("gCo2"), recent(co2Hist, now, GRAPH_MS), "ppm", "", "#E0557A", now);
     spark($("gTemp"), recent(tempHist, now, GRAPH_MS), "c", "℃", "#d9485f", now);
     $("feedList").replaceChildren(...feedLog.slice().reverse().slice(0, 8).map((f) => {
       const li = document.createElement("li");
@@ -377,6 +377,21 @@ const onFeed = (e) => {
   $("feedMsg").textContent = $("homeFeedMsg").textContent = `기록했어요 (${size}) — 지금부터 예측 곡선 시작`;
   render();
 };
+// 투입 버튼 하트 콘페티(시각 효과만, 기록 로직과 무관). 움직임 줄이기 설정이면 CSS가 숨김
+function hearts(e) {
+  const b = e.target.closest("button[data-size]");
+  if (!b || b.disabled) return;
+  const r = b.getBoundingClientRect();
+  for (let i = 0; i < 6; i++) {
+    const s = Object.assign(document.createElement("span"), { className: "heart", textContent: i % 2 ? "💗" : "✨" });
+    s.setAttribute("aria-hidden", "true");
+    s.style.left = `${r.left + r.width / 2 - 9 + (i - 2.5) * 14}px`; s.style.top = `${r.top}px`;
+    s.style.setProperty("--dx", `${(i - 2.5) * 10}px`); s.style.animationDelay = `${i * 40}ms`;
+    document.body.append(s); setTimeout(() => s.remove(), 1300);
+  }
+}
+$("feedBtns").addEventListener("click", hearts);
+$("homeFeed").addEventListener("click", hearts);
 $("feedBtns").addEventListener("click", onFeed);
 $("homeFeed").addEventListener("click", onFeed);
 

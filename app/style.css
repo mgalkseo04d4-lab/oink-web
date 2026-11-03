@@ -1,22 +1,25 @@
 /* 스케치 기준: 크림 바탕, 노랑(평소)/빨강(이상) 블롭 위 돼지, 2×2 카드, 하단 탭 */
 :root {
+  /* 디자인 가이드(DESIGN_GUIDE.md) 토큰. 대비 4.5:1 맞추려고 글자용 색은 따로 둠(--ink, --muted는 #8A7878보다 조금 어둡게) */
   color-scheme: light;
-  --page: #fff8ec; --surface: #fff; --surface-soft: #fff4e2;
-  --text: #3b2a22; --text2: #6b5446; --muted: #9a8576;
-  --border: #f1e2cc; --gridline: #f3e7d6;
-  --primary: #e0782f; --primary-soft: #ffe7cf;
-  --good: #2f9e57; --good-soft: #dcf5e4;
-  --warning: #b45309; --warning-soft: #fef3c7;
-  --critical: #d62828; --critical-soft: #ffe1e1;
-  --calm: #f7c948; --calm-glow: #fde68a;
-  --alert: #e84a4a; --alert-glow: #fca5a5;
-  --sleep: #cbd5e1; --sleep-glow: #e2e8f0;
-  --shadow: 0 6px 18px rgba(120, 72, 20, .08);
-  --tabbar-h: 64px;
+  --page: #FFF9F6; --surface: #FFFFFF; --surface-soft: #FFF2F5;
+  --text: #3D2E2E; --text2: #5E4A4A; --muted: #766262;
+  --border: #FFE6EB; --gridline: #FBE4E9;
+  --brand: #FF8FA3; --coral: #FF6B8B; --ink: #B83A58; --mint: #4ECDC4; --gold: #FFD166;
+  --primary: #E0557A; --primary-soft: #FFE6EB;
+  --good: #1F7A73; --good-soft: #DDF6F4;
+  --warning: #9A5200; --warning-soft: #FFF3D1;
+  --critical: #D62828; --critical-soft: #FFF0F1;
+  --calm: #FFD166; --calm-glow: #FFF1C2;
+  --alert: #E84A4A; --alert-glow: #FCA5A5;
+  --sleep: #CBD5E1; --sleep-glow: #E2E8F0;
+  --shadow: 0 12px 28px -6px rgba(255, 143, 163, .16);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --tabbar-h: 68px;
 }
 [hidden] { display: none !important; }
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; background: var(--page); color: var(--text); }
+body { margin: 0; font-family: "Nunito", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; background: var(--page); color: var(--text); }
 main {
   max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;
   padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
@@ -165,3 +168,49 @@ input[type=range] { width: 100%; accent-color: var(--primary); }
 .src { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: .62rem; font-weight: 800; }
 .src.real { background: var(--good-soft); color: var(--good); }
 .src.model { background: var(--primary-soft); color: var(--warning); }
+
+/* ---- 디자인 가이드: 둥근 카드·알약 버튼·젤리 인터랙션(표현만) ---- */
+button { border: 1.5px solid var(--border); border-radius: 999px; min-height: 48px; padding: 10px 18px; font-weight: 700;
+  transition: transform .28s var(--spring), background .2s ease; -webkit-tap-highlight-color: transparent; }
+button:active:not(:disabled) { transform: scale(.94); transition-duration: .08s; }
+button.primary { background: var(--brand); border-color: var(--brand); color: var(--text); box-shadow: 0 8px 18px -6px rgba(255, 107, 139, .45); }
+button.primary.wide { min-height: 56px; font-size: 1.08rem; }
+button.small { min-height: 48px; padding: 6px 14px; font-size: .8rem; }
+button.danger { background: var(--critical-soft); }
+.card { border: 1.5px solid var(--border); border-radius: 26px; padding: 18px; box-shadow: var(--shadow); }
+.stat { border-radius: 26px; }
+.kicker { color: var(--ink); }
+.login input, .name { border: 1.5px solid var(--border); border-radius: 16px; min-height: 48px; }
+.login input:focus, .name:focus { outline: 3px solid var(--brand); outline-offset: 1px; }
+.pill, .bubble { border: 1.5px solid var(--border); }
+.bubble { box-shadow: var(--shadow); }
+.badge { border: 1.5px solid var(--border); }
+.badge.demo { background: var(--brand); color: var(--text); }
+.src.model { background: var(--primary-soft); color: var(--ink); }
+.list li { border-radius: 16px; }
+.tabbar { border-top: 1.5px solid var(--border); box-shadow: 0 -8px 24px -10px rgba(255, 143, 163, .22); }
+.tabbar [role=tab] { min-height: 52px; border-radius: 18px; }
+.tabbar [role=tab][aria-selected=true] { color: var(--ink); background: var(--primary-soft); }
+.tap:focus-visible { outline-color: var(--brand); }
+.toggle { width: 52px; height: 30px; min-height: 0; background: var(--gridline); }
+.toggle::before { content: ""; position: absolute; inset: -9px; } /* 터치 영역 48px */
+.toggle .knob { width: 26px; height: 26px; }
+.toggle.on { background: var(--brand); }
+.toggle.on .knob { transform: translateX(22px); }
+.row > .toggle { flex: 0 0 52px; }
+/* 진행 막대: 값·문구 그대로, 모양만 통통하게 */
+.bar { height: 16px; border: 1.5px solid var(--border); background: var(--surface-soft); }
+.bar > div { background: linear-gradient(90deg, var(--gold), var(--brand)); box-shadow: inset 0 -3px 0 rgba(255, 255, 255, .35); transition: width .6s var(--spring); }
+/* 로딩: 둥실 */
+.pill:not(.on) .dot, .pig-mini { animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-4px); } }
+/* 투입 버튼 하트 콘페티(시각 효과만) */
+.heart { position: fixed; z-index: 30; pointer-events: none; font-size: 18px; animation: pop 1s ease-out forwards; }
+@keyframes pop { from { transform: translate(0, 0) scale(.6); opacity: 1; } to { transform: translate(var(--dx), -70px) scale(1.1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  button, .bar > div { transition: none; }
+  button:active:not(:disabled) { transform: none; }
+  .pill .dot, .pig-mini, .heart { animation: none !important; }
+  .heart { display: none; }
+}
+.row.between > span { flex: 1; min-width: 0; }
