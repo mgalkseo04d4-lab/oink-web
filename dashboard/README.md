@@ -1,6 +1,6 @@
 # Oink 클라우드 대시보드 (`cloud-dashboard/`, 서버 없음)
 
-팀용 센서값 확인 화면. 배포: https://spectacular-sable-ae63c8.netlify.app . 사용자용 앱은 `webapp/`.
+팀용 센서값 확인 화면. 배포: https://mgalkseo04d4-lab.github.io/oink-web/dashboard/ . 사용자용 앱은 `webapp/`.
 
 브라우저가 MQTT over WebSocket(wss)으로 브로커에 직접 접속해 `oink/gateway/status`, `oink/gateway/telemetry`를 실시간 표시한다. 빌드 없음: `index.html` + `app.js` + `style.css`. 토픽·페이로드 규격은 `firmware/MQTT_PROTOCOL.md`.
 
@@ -12,8 +12,7 @@
 
 ## 2. 웹앱 열기 (셋 중 하나)
 - 파일 직접 열기: `index.html` 더블클릭 (인터넷 연결 필요 — mqtt.js를 unpkg에서 받음).
-- Netlify Drop: app.netlify.com/drop 에 `cloud-dashboard` 폴더를 끌어다 놓기 → 주소 생성.
-- GitHub Pages: 저장소 Settings → Pages → 브랜치 main, 폴더 지정(루트가 아니면 `cloud-dashboard`만 별도 저장소/브랜치로).
+- GitHub Pages(현재 배포): 공개 저장소 `mgalkseo04d4-lab/oink-web`의 `dashboard/`에 이 폴더를 복사해 푸시 → https://mgalkseo04d4-lab.github.io/oink-web/dashboard/ 에 1~2분 내 반영. (Netlify는 11/03 무료 크레딧 소진으로 중단)
 
 ## 3. 로그인
 브로커 주소는 `app.js`의 `BROKER` 상수로 고정(입력칸 없음). 아이디(기본 `oink-web`)·비밀번호 입력 → 접속 성공해야 대시보드로 들어감, 실패하면 "로그인 실패". "로그인 유지"를 켜면 다음부터 자동 접속, 로그아웃하면 저장 정보 삭제.

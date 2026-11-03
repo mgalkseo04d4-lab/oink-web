@@ -4,7 +4,7 @@
 서버 없음 — 브라우저가 wss로 EMQX에 직접 접속(`wss://o9f10aca.ala.asia-southeast1.emqxsl.com:8084/mqtt`, 계정 `oink-web`). 토픽 규격은 `firmware/MQTT_PROTOCOL.md`.
 
 ## 배포·설치 (HTTPS 필요)
-- Netlify Drop(app.netlify.com/drop)에 `webapp` 폴더를 끌어다 놓기 → `https://…netlify.app` 주소. 대시보드와 다른 사이트로 올린다.
+- GitHub Pages(현재 배포): 공개 저장소 `mgalkseo04d4-lab/oink-web`의 `app/`에 이 폴더를 복사해 푸시 → https://mgalkseo04d4-lab.github.io/oink-web/app/ (HTTPS라 PWA 설치 가능). Netlify는 11/03 크레딧 소진으로 중단.
 - 안드로이드 Chrome: 주소 열기 → 메뉴(⋮) → "앱 설치" 또는 "홈 화면에 추가".
 - 아이폰 Safari: 주소 열기 → 공유 → "홈 화면에 추가".
 - 앱을 고치면 `sw.js`의 `CACHE` 이름(현재 oink-shell-v4)을 올려야 설치된 폰에 새 버전이 반영된다.
