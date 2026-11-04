@@ -1,5 +1,5 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
-import { co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
+import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, HOT_MSG_OFF, HOT_MSG_AUTO, autoRange, CO2_MAX, HOLD_RESEND_MS } from "./logic.mjs";
 
 const T = {
@@ -44,6 +44,7 @@ let amp = Number(store.get(KEY_AMP)) || AMP_DEFAULT;
 let demo = store.get(KEY_DEMO) === "1";
 let hotSt = loadJson(KEY_HOT, null);
 let liveKey = "co2", liveBase = null;
+let predSpanH = 24; // 분석 화면 x축: 하루(24h) / 일주일(DECOMP_END_H)
 let pendingHeat = null; // { want, sentAt, auto }
 let toastTimer = null;
 let lastCo2Save = 0;
@@ -60,6 +61,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 $("devName").value = store.get("oink.dev") || (/Mobi|Android|iPhone/i.test(navigator.userAgent) ? "내 폰" : "내 PC");
 $("devName").addEventListener("change", () => store.set("oink.dev", $("devName").value.trim()));
 const devName = () => $("devName").value.trim() || "이름 없음";
+const ago = (ms) => { const m = Math.floor(ms / 60000); return m < 1 ? "방금" : m < 60 ? `${m}분 전` : m < 48 * 60 ? `${Math.floor(m / 60)}시간 전` : `${Math.floor(m / 1440)}일 전`; };
 const t2s = (ms) => new Date(ms).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 function netCheck() {
@@ -75,6 +77,7 @@ addEventListener("offline", netCheck);
 function showTab(name) {
   curTab = name;
   for (const p of document.querySelectorAll("#app > .tab")) p.hidden = p.id !== `tab-${name}`;
+  document.querySelector(".topbar").hidden = name === "log"; // 분석 화면은 자체 제목(목업)
   for (const b of document.querySelectorAll(".tabbar [role=tab]")) b.setAttribute("aria-selected", String(b.dataset.tab === (name === "live" ? "home" : name)));
   if (name === "alert") { evSeen = events.length ? events[events.length - 1].ts : evSeen; store.set(KEY_EV_SEEN, String(evSeen)); }
   render();
@@ -94,21 +97,30 @@ function predGraph(svg, feedTs, now) {
   if (!feedTs) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="sp-empty">음식물을 넣으면 예측 곡선이 그려져요</text>`; return; }
   if (co2Base?.feedTs !== feedTs) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="sp-empty">투입 후 첫 CO₂ 값을 기다리는 중이에요</text>`; return; }
   const base = co2Base.base, sp = speed();
-  const real = co2Hist.filter((p) => p.t >= feedTs).map((p) => ({ h: curveH(feedTs, p.t, sp), v: p.ppm })).filter((p) => p.h <= DECOMP_END_H);
-  const r = autoRange([base, Math.min(CO2_MAX, base + amp), ...real.map((p) => p.v)], 40, CO2_MAX);
-  const x = (h) => L + (h / DECOMP_END_H) * (W - L - R);
+  const span = predSpanH;
+  const real = co2Hist.filter((p) => p.t >= feedTs).map((p) => ({ h: curveH(feedTs, p.t, sp), v: p.ppm })).filter((p) => p.h <= span);
+  let peak = 0;
+  for (let h = 0; h <= span; h += span / 60) peak = Math.max(peak, rate(h));
+  const r = autoRange([base, Math.min(CO2_MAX, base + amp * peak * 1.2), ...real.map((p) => p.v)], 40, CO2_MAX);
+  const x = (h) => L + (h / span) * (W - L - R);
   const y = (v) => Tp + (1 - (v - r.min) / (r.max - r.min)) * (H - Tp - B);
   let g = "";
   for (const v of [r.min, (r.min + r.max) / 2, r.max]) {
     g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="sp-grid"/><text x="${L - 5}" y="${y(v) + 4}" text-anchor="end" class="sp-ax">${Math.round(v)}</text>`;
   }
-  for (let d = 0; d <= 7; d++) g += `<text x="${x(d * 24)}" y="${H - 6}" text-anchor="middle" class="sp-ax">${d === 0 ? "투입" : `${d}일`}</text>`;
-  const pts = [];
-  for (let h = 0; h <= DECOMP_END_H; h += 2) pts.push(`${x(h).toFixed(1)},${y(predictPpm(base, amp, h)).toFixed(1)}`);
+  const ticks = span === 24 ? [0, 6, 12, 18, 24] : [0, 24, 48, 72, 96, 120, 144, 168];
+  for (const h of ticks) g += `<text x="${x(h)}" y="${H - 6}" text-anchor="middle" class="sp-ax">${h === 0 ? "투입" : span === 24 ? `${h}h` : `${h / 24}일`}</text>`;
+  const pts = [], up = [], lo = [];
+  for (let h = 0; h <= span; h += span / 84) {
+    const inc = predictPpm(base, amp, h) - base; // 예측 범위 띠 = 예측 증가분의 80~120%(활성도 정상 경계)
+    pts.push(`${x(h).toFixed(1)},${y(base + inc).toFixed(1)}`);
+    up.push(`${x(h).toFixed(1)},${y(Math.min(CO2_MAX, base + inc * 1.2)).toFixed(1)}`);
+    lo.unshift(`${x(h).toFixed(1)},${y(base + inc * 0.8).toFixed(1)}`);
+  }
+  g += `<polygon points="${[...up, ...lo].join(" ")}" class="sp-band"/>`;
   g += `<polyline points="${pts.join(" ")}" class="sp-pred"/>`;
-  g += `<text x="${x(PEAK_H)}" y="${y(predictPpm(base, amp, PEAK_H)) - 6}" text-anchor="middle" class="sp-lbl" fill="var(--text2)">예측(모델)</text>`;
   const hn = curveH(feedTs, now, sp);
-  if (hn <= DECOMP_END_H) g += `<line x1="${x(hn)}" x2="${x(hn)}" y1="${Tp}" y2="${H - B}" class="sp-now"/>`;
+  if (hn <= span) g += `<line x1="${x(hn)}" x2="${x(hn)}" y1="${Tp}" y2="${H - B}" class="sp-now"/>`;
   if (real.length) {
     g += `<polyline points="${real.map((p) => `${x(p.h).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")}" class="sp-real"/>`;
     const l = real[real.length - 1];
@@ -185,10 +197,19 @@ function render() {
   }
 
   $("hero").className = `hero ${hs.state}`;
-  $("pig").setAttribute("class", `pig ${hs.state}`);
+  // 표정 이미지(판정은 logic 그대로): 정상=웃음, 이상=화남, 대기·데이터 없음=기본, 끊김=기본+회색
+  const linked = !!(client?.connected && gw.online);
+  const face = hs.state === "calm" ? "happy" : hs.state === "alert" ? "angry" : "base";
+  const pigCls = `pig ${hs.state}${hs.state === "sleep" && !linked ? " off" : ""}`;
+  const pig = $("pig");
+  if (pig.dataset.face !== face) {
+    pig.dataset.face = face; pig.src = `img/pig_${face}.webp`;
+    pig.classList.remove("pop"); void pig.offsetWidth; pig.classList.add("pop"); // 전환 시 squash-bounce
+  }
+  pig.className = `${pigCls}${pig.classList.contains("pop") ? " pop" : ""}`;
   const txt = homeText(hs);
   $("moodText").textContent = txt;
-  $("pig").setAttribute("aria-label", `Oink: ${txt}`);
+  pig.alt = `Oink: ${txt}`;
 
   $("conn").className = `pill ${online ? "on" : ""}`;
   $("connText").textContent = !client?.connected ? "재연결 중" : online ? "Oink 연결됨" : "Oink 꺼져 있음";
@@ -214,6 +235,11 @@ function render() {
     ? activity({ pts: co2Hist.map((q) => ({ t: q.t, v: q.ppm })), now, feedTs, base: co2Base.base, amp, speed: speed() }) : null;
   const actLine = !feedTs ? "" : !act ? "분해 활성도: 측정 대기" : act.pct == null ? `분해 활성도: ${act.text}` : `분해 활성도 ${act.pct}% · ${act.text}`;
   $("progAct").textContent = actLine;
+  $("vAct").textContent = act?.pct != null ? `${act.pct}%` : "—";
+  $("nAct").textContent = !feedTs ? "음식물을 넣으면 보여요" : !act ? "측정 대기" : act.text;
+  $("nAct").className = `num act ${act?.key || ""}`;
+  $("vFeed").textContent = feedTs ? ago(now - feedTs) : "—";
+  $("nFeed").textContent = feedTs ? t2s(feedTs) : "기록 없음";
   $("progAct").className = `num act ${act?.key || ""}`;
   for (const b of document.querySelectorAll(".badge.demo")) b.hidden = !demo;
   $("holdNote").hidden = !hotSt?.active;
@@ -241,6 +267,9 @@ function render() {
     predGraph($("gPred"), feedTs, now);
     $("actText").textContent = !feedTs ? "음식물을 넣으면 예측 곡선이 그려져요" : actLine;
     $("actText").className = `act-line ${act?.key || ""}`;
+    $("bigAct").textContent = act?.pct != null ? `${act.pct}%` : "—";
+    $("spanDay").setAttribute("aria-pressed", String(predSpanH === 24));
+    $("spanWeek").setAttribute("aria-pressed", String(predSpanH !== 24));
     spark($("gCo2"), recent(co2Hist, now, GRAPH_MS), "ppm", "", "#E0557A", now);
     spark($("gTemp"), recent(tempHist, now, GRAPH_MS), "c", "℃", "#d9485f", now);
     $("feedList").replaceChildren(...feedLog.slice().reverse().slice(0, 8).map((f) => {
@@ -286,7 +315,10 @@ function tapCard(el, fn) {
   el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
 }
 for (const id of ["cCo2", "cTemp"]) tapCard($(id), () => { liveKey = $(id).dataset.live; liveBase = null; showTab("live"); });
-tapCard($("cProg"), () => showTab("log"));
+tapCard($("cAct"), () => showTab("log"));
+$("logBack").addEventListener("click", () => showTab("home"));
+$("spanDay").addEventListener("click", () => { predSpanH = 24; render(); });
+$("spanWeek").addEventListener("click", () => { predSpanH = DECOMP_END_H; render(); });
 $("liveBack").addEventListener("click", () => showTab("home"));
 $("liveBase").addEventListener("click", () => { liveBase = Date.now(); render(); });
 $("liveBaseClr").addEventListener("click", () => { liveBase = null; render(); });
@@ -456,3 +488,11 @@ try {
   if (saved?.username) oinkConnect(BROKER, saved.username, saved.password, true);
 } catch { store.del(KEY_LOGIN); }
 setInterval(() => { if (!$("app").hidden) render(); }, 2000);
+// 시작 화면(시연용, 로그인 유지여도 매번): 탭할 때마다 1 → 2 → 앱. 자동 넘김 없음
+{
+  const sp = $("splash");
+  const next = () => { if (sp.classList.contains("two")) sp.remove(); else sp.classList.add("two"); };
+  sp.addEventListener("click", next);
+  sp.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); next(); } });
+  sp.focus();
+}

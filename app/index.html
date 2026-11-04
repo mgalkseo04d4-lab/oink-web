@@ -17,6 +17,18 @@
   <script type="module" src="app.js"></script>
 </head>
 <body>
+  <!-- 시작 화면(목업 1·2번): 탭할 때마다 다음 화면 → 앱 -->
+  <div id="splash" class="splash" role="button" tabindex="0" aria-label="시작 화면, 탭해서 계속">
+    <div class="sc sc1">
+      <div class="pigwrap sp"><span class="fl f1"></span><span class="fl f2"></span><span class="fl f3"></span><img src="img/pig_happy.webp" alt="" class="sp-pig"></div>
+      <p class="sp-title">우리집 미생물</p>
+    </div>
+    <div class="sc sc2">
+      <p class="sp-title pink">우리집 미생물</p>
+      <div class="peek"><svg class="lines" viewBox="0 0 80 50" aria-hidden="true"><path d="M12 40 l-8 -14 M34 32 l-2 -20 M52 36 l10 -16" stroke="#3D2E2E" stroke-width="5" stroke-linecap="round"/></svg><img src="img/pig_base.webp" alt=""></div>
+    </div>
+    <p class="sp-hint"><span class="dots"><i></i><i></i></span>탭해서 계속</p>
+  </div>
   <main>
     <p id="netWarn" class="banner warn" hidden>인터넷 연결이 필요해요 — 연결되면 다시 열어 주세요</p>
 
@@ -36,66 +48,22 @@
     <section id="app" hidden>
       <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
       <header class="topbar">
-        <div>
-          <p class="kicker">OINK</p>
-          <h1>우리 집 미생물 친구</h1>
-        </div>
+        <h1 id="appTitle">우리집 미생물</h1>
         <span id="conn" class="pill"><span class="dot"></span><span id="connText">연결 중</span></span>
       </header>
 
-      <!-- 홈 -->
+      <!-- 홈(목업 3·4번) -->
       <div id="tab-home" class="tab" role="tabpanel" aria-labelledby="tb-home">
         <article class="hero calm" id="hero">
-          <div class="glow" aria-hidden="true"></div>
-          <svg id="pig" class="pig calm" viewBox="0 0 220 200" role="img" aria-label="Oink: 편안해요">
-            <!-- 꽃·반짝이(평소) -->
-            <g class="deco calm">
-              <g transform="translate(26 40)"><circle r="6" fill="#fff"/><circle cx="7" r="6" fill="#fff"/><circle cx="3.5" cy="-6" r="6" fill="#fff"/><circle cx="3.5" cy="6" r="6" fill="#fff"/><circle cx="3.5" r="3.5" fill="#FFB020"/></g>
-              <g transform="translate(186 34)"><circle r="5" fill="#fff"/><circle cx="6" r="5" fill="#fff"/><circle cx="3" cy="-5" r="5" fill="#fff"/><circle cx="3" cy="5" r="5" fill="#fff"/><circle cx="3" r="3" fill="#FFB020"/></g>
-              <g transform="translate(34 160)"><circle r="5" fill="#fff"/><circle cx="6" r="5" fill="#fff"/><circle cx="3" cy="-5" r="5" fill="#fff"/><circle cx="3" cy="5" r="5" fill="#fff"/><circle cx="3" r="3" fill="#FFB020"/></g>
-              <path d="M190 150 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3z" fill="#fff"/>
-            </g>
-            <!-- 몸 -->
-            <path class="tail" d="M176 136 q16 -4 12 -16 q-4 -10 -12 -2 q-6 8 6 10 q10 2 18 -8" fill="none" stroke="#FF8FA3" stroke-width="5" stroke-linecap="round"/>
-            <path d="M56 70 L48 26 L92 50 Z" fill="#FFB3C1" stroke="#E07A93" stroke-width="3" stroke-linejoin="round"/>
-            <path d="M164 70 L172 26 L128 50 Z" fill="#FFB3C1" stroke="#E07A93" stroke-width="3" stroke-linejoin="round"/>
-            <ellipse cx="110" cy="112" rx="72" ry="66" fill="#FFE0E7" stroke="#E07A93" stroke-width="3"/>
-            <ellipse cx="110" cy="132" rx="30" ry="21" fill="#FFB3C1" stroke="#E07A93" stroke-width="3"/>
-            <ellipse cx="100" cy="132" rx="4.5" ry="6.5" fill="#B83A58"/>
-            <ellipse cx="120" cy="132" rx="4.5" ry="6.5" fill="#B83A58"/>
-            <!-- 평소: ^ ^ 웃는 눈, 홍조, 미소 -->
-            <g class="m calm">
-              <path d="M70 98 q10 -12 20 0 M130 98 q10 -12 20 0" stroke="#5b2a38" stroke-width="4.5" fill="none" stroke-linecap="round"/>
-              <ellipse cx="66" cy="120" rx="11" ry="7" fill="#FF8FA3" opacity=".55"/>
-              <ellipse cx="154" cy="120" rx="11" ry="7" fill="#FF8FA3" opacity=".55"/>
-              <path d="M98 160 q12 9 24 0" stroke="#5b2a38" stroke-width="4" fill="none" stroke-linecap="round"/>
-            </g>
-            <!-- 이상: 찌푸린 눈썹, 땀방울, 💢 -->
-            <g class="m alert">
-              <path d="M66 88 l24 10 M154 88 l-24 10" stroke="#5b2a38" stroke-width="5" stroke-linecap="round"/>
-              <circle cx="80" cy="106" r="5" fill="#5b2a38"/><circle cx="140" cy="106" r="5" fill="#5b2a38"/>
-              <path d="M96 166 q14 -10 28 0" stroke="#5b2a38" stroke-width="4" fill="none" stroke-linecap="round"/>
-              <path d="M166 92 q8 12 0 18 q-8 -6 0 -18z" fill="#60a5fa"/>
-              <g transform="translate(28 84)" stroke="#d62828" stroke-width="5" stroke-linecap="round" fill="none">
-                <path d="M-12 -4 q8 0 8 -8 M4 -12 q0 8 8 8 M12 4 q-8 0 -8 8 M-4 12 q0 -8 -8 -8"/>
-              </g>
-            </g>
-            <!-- 끊김: 자는 얼굴 -->
-            <g class="m sleep">
-              <path d="M70 104 q10 6 20 0 M130 104 q10 6 20 0" stroke="#5b2a38" stroke-width="4" fill="none" stroke-linecap="round"/>
-              <path d="M102 162 q8 4 16 0" stroke="#5b2a38" stroke-width="3.5" fill="none" stroke-linecap="round"/>
-              <text x="168" y="54" font-size="24" font-weight="700" fill="#64748b">z</text>
-              <text x="186" y="34" font-size="18" font-weight="700" fill="#64748b">z</text>
-            </g>
-          </svg>
-          <p id="moodText" class="bubble">쿨쿨 자는 중… 💤</p>
+          <p class="bubble"><svg viewBox="0 0 24 24" class="bell" aria-hidden="true"><path d="M6 16 V11 a6 6 0 0 1 12 0 V16 L19.5 18 H4.5 Z" fill="#FFD166" stroke="#3D2E2E" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20.5 a2 2 0 0 0 4 0" fill="none" stroke="#3D2E2E" stroke-width="1.8" stroke-linecap="round"/></svg><span id="moodText">쿨쿨 자는 중… 💤</span></p>
+          <div class="pigwrap"><span class="fl f1"></span><span class="fl f2"></span><span class="fl f3"></span><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="520" height="449"></div>
         </article>
 
         <div class="grid2">
-          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker">CO₂</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> 눌러서 그래프</p></article>
-          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker">심부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> 눌러서 그래프</p></article>
-          <article class="card stat"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p class="num">0~100</p><p class="num tiny"><span class="src test">시험값</span> MQ 예열 중</p></article>
-          <article class="card stat tap" id="cProg" role="button" tabindex="0" aria-label="예측과 실측 CO₂ 비교 그래프 보기"><p class="kicker">분해 진행 <span class="badge demo" hidden>시연 배속</span></p><div class="bar"><div id="progBar"></div></div><p id="progText" class="num">음식물을 넣으면 보여요</p><p id="progAct" class="num act"></p><p id="progTrend" class="num"></p><p class="num tiny"><span class="src model">모델 추정치</span> 눌러서 비교</p></article>
+          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18 h10 a4 4 0 0 0 0 -8 a5.5 5.5 0 0 0 -10.5 -1.5 A4.5 4.5 0 0 0 7 18 z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
+          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4 a2 2 0 0 1 4 0 v9.5 a4 4 0 1 1 -4 0 z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="2" fill="#E5394F"/><path d="M12 15 V8" stroke="#E5394F" stroke-width="2" stroke-linecap="round"/></svg>내부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
+          <article class="card stat tap" id="cAct" role="button" tabindex="0" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20 V14 M10 20 V9 M15 20 V12 M20 20 V5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
+          <article class="card stat" id="cFeed"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5 V12 l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>최근 투입</p><p class="big"><span id="vFeed">—</span></p><p id="nFeed" class="num"></p><p class="num tiny">투입 기록</p></article>
         </div>
         <div class="row" id="homeFeed"><button type="button" data-size="중" class="primary wide">🍽 음식물 넣었어요</button></div>
         <p id="homeFeedMsg" class="muted center"></p>
@@ -115,11 +83,18 @@
 
       <!-- 기록 -->
       <div id="tab-log" class="tab" role="tabpanel" aria-labelledby="tb-log" hidden>
+        <div class="subhead"><button type="button" id="logBack" class="back" aria-label="홈으로">&lt;</button><h2>분해 활성 분석</h2></div>
+        <div class="seg" role="group" aria-label="그래프 범위"><button type="button" id="spanDay" aria-pressed="true">하루</button><button type="button" id="spanWeek" aria-pressed="false">일주일</button></div>
         <article class="card" id="predCard">
-          <div class="card-head"><p class="kicker">예측 vs 실측 CO₂</p><span class="row"><span class="badge demo" hidden>시연 배속 · 이스트 양성 대조</span><span id="ampBadge" class="badge">보정 전</span></span></div>
-          <svg id="gPred" class="spark" viewBox="0 0 320 190" role="img" aria-label="음식물 투입 후 예측 CO₂(점선)와 실측 CO₂(실선)"></svg>
+          <div class="card-head"><p class="kicker">CO₂ 변화</p><span class="row"><span class="badge demo" hidden>시연 배속 · 이스트 양성 대조</span><span id="ampBadge" class="badge">보정 전</span></span></div>
+          <svg id="gPred" class="spark" viewBox="0 0 320 190" role="img" aria-label="음식물 투입 후 예상 CO₂(점선), 예측 범위(회색 띠), 실측 CO₂(실선)"></svg>
+          <p class="legend"><span><i class="lg-pred"></i>예상값</span><span><i class="lg-band"></i>예측 범위</span><span><i class="lg-real"></i>실측값</span></p>
+          <p class="muted tiny"><span class="src model">모델 추정치(논문 경향 기반)</span> 점선 예측 = 투입 시점 CO₂ + 정점 증가폭 × 곡선(정점 약 3일차, 7일 감소 — Sustainability 2025, 17, 8041). 회색 띠 = 예측 증가분의 80~120%(정상 범위). <span class="src real b1src">실측</span> 실선 = CM1106 값. 분해 활성도 = 실측 증가분 ÷ 예측 증가분(최근 5분 평균).</p>
+        </article>
+        <article class="card center-card">
+          <p class="kicker">예측 대비 발생량</p>
+          <p id="bigAct" class="huge">—</p>
           <p id="actText" class="act-line">음식물을 넣으면 예측 곡선이 그려져요</p>
-          <p class="muted tiny"><span class="src model">모델 추정치(논문 경향 기반)</span> 점선 예측 = 투입 시점 CO₂ + 정점 증가폭 × 곡선(정점 약 3일차, 7일 감소 — Sustainability 2025, 17, 8041). <span class="src real b1src">실측</span> 실선 = CM1106 값. 분해 활성도 = 실측 증가분 ÷ 예측 증가분(최근 5분 평균).</p>
         </article>
         <article class="card">
           <div class="card-head"><p class="kicker">CO₂ 추세</p><span class="badge">최근 10분</span></div>
@@ -130,6 +105,10 @@
           <svg id="gTemp" class="spark" viewBox="0 0 320 110" role="img" aria-label="심부 온도 최근 10분 추세"></svg>
         </article>
         <p class="muted">앱을 열어 둔 동안 쌓여요. 닫으면 처음부터 다시 쌓여요.</p>
+        <div class="grid2">
+          <article class="card stat"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p class="num">0~100</p><p class="num tiny"><span class="src test">시험값</span> MQ 예열 중</p></article>
+          <article class="card stat" id="cProg"><p class="kicker">분해 진행 <span class="badge demo" hidden>시연 배속</span></p><div class="bar"><div id="progBar"></div></div><p id="progText" class="num">음식물을 넣으면 보여요</p><p id="progAct" class="num act"></p><p id="progTrend" class="num"></p><p class="num tiny"><span class="src model">모델 추정치</span></p></article>
+        </div>
         <article class="card">
           <p class="kicker">음식물 넣기</p>
           <div class="row" id="feedBtns">
@@ -190,7 +169,7 @@
         <button type="button" role="tab" id="tb-home" aria-controls="tab-home" aria-selected="true" data-tab="home">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 L12 3 L21 11 M5 9.5 V21 H19 V9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg><span>홈</span></button>
         <button type="button" role="tab" id="tb-log" aria-controls="tab-log" aria-selected="false" data-tab="log">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20 V13 M10 20 V8 M15 20 V11 M20 20 V4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>기록</span></button>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20 V13 M10 20 V8 M15 20 V11 M20 20 V4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>분석</span></button>
         <button type="button" role="tab" id="tb-alert" aria-controls="tab-alert" aria-selected="false" data-tab="alert">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17 V11 a6 6 0 0 1 12 0 V17 L20 19 H4 Z M10 21 a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>알림</span><b id="evBadge" class="count" hidden>0</b></button>
         <button type="button" role="tab" id="tb-me" aria-controls="tab-me" aria-selected="false" data-tab="me">
