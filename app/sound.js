@@ -21,52 +21,39 @@ function note(ac, to, type, t, dur, peak, path) {
   o.start(t); o.stop(t + dur);
 }
 
-// 돼지 음절 하나: 성문 펄스(지터·진폭 떨림·잡음)를 버퍼로 만들어 콧소리 포먼트(병렬 밴드패스)로 냄. path = [[0~1, f0 배수], ...]
-function voice(ac, to, t, { dur, f0, path, amp, rough = 0.32, noise = 0.05, jit = 0.04, fm = 1 }) {
-  const sr = ac.sampleRate, n = Math.ceil(dur * sr);
-  const buf = ac.createBuffer(1, n, sr), d = buf.getChannelData(0);
-  let ph = 0, per = 1, shim = 1, odd = false, fl = Math.random(), flut = 26 + Math.random() * 14, seg = 0;
-  for (let i = 0; i < n; i++) {
-    const x = i / n;
-    while (x > path[seg + 1][0]) seg++;
-    const [x0, a0] = path[seg], [x1, a1] = path[seg + 1];
-    ph += f0 * (a0 + (a1 - a0) * (x - x0) / (x1 - x0)) * per / sr;
-    if (ph >= 1) { // 성문 주기마다 길이·세기를 흔들어 그르렁거림
-      ph -= 1; odd = !odd;
-      per = 1 + (Math.random() - 0.5) * 2 * jit;
-      shim = (1 - Math.random() * rough * 0.7) * (odd ? 1 - rough * 0.4 : 1);
-      flut *= 1 + (Math.random() - 0.5) * 0.06;
-    }
-    fl += flut / sr;
-    const pulse = ph < 0.6 ? (ph / 0.6) ** 2 - 0.2 : -0.2; // 천천히 열리고 순간 닫힘(평균 0, 배음 풍부)
-    const am = 1 - rough * (0.5 + 0.5 * Math.sin(2 * Math.PI * fl));
-    const env = Math.min(1, i / (0.005 * sr)) * (x < 0.6 ? 1 : Math.cos((x - 0.6) / 0.4 * Math.PI / 2) ** 2);
-    d[i] = env * am * (pulse * shim + noise * (Math.random() * 2 - 1));
+// 뽀잉: 사인파(옥타브 위 소량)가 훅 올랐다 살짝 내려오고, 정점 뒤 약한 비브라토. 낮은 음·잡음 없음. p = 피치 배수
+export const BOING = { start: 410, peak: 1080, end: 900, rise: 0.07, dur: 0.26 };
+// 탭마다 고르는 피치. 낮을수록 살짝 길게(0.22~0.28초)
+export const BOING_PITCHES = [0.92, 0.98, 1.04, 1.1, 1.16];
+export function boing(ac, to, t, p = 1) {
+  const { start, peak, end, rise } = BOING, stop = t + BOING.dur / p;
+  const g = ac.createGain(), vib = ac.createOscillator(), depth = ac.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(1, t + 0.018);
+  g.gain.linearRampToValueAtTime(0.8, t + 0.1);
+  g.gain.exponentialRampToValueAtTime(0.003, stop - 0.004);
+  g.gain.linearRampToValueAtTime(0, stop);
+  vib.frequency.value = 17;
+  depth.gain.setValueAtTime(0, t + rise);
+  depth.gain.linearRampToValueAtTime(35, t + rise + 0.05); // 센트
+  vib.connect(depth);
+  for (const [mul, amp] of [[1, 0.43], [2, 0.07]]) { // 합이 최대 진폭 0.5
+    const o = ac.createOscillator(), a = ac.createGain();
+    a.gain.value = amp;
+    o.frequency.setValueAtTime(start * p * mul, t);
+    o.frequency.exponentialRampToValueAtTime(peak * p * mul, t + rise);
+    o.frequency.exponentialRampToValueAtTime(end * p * mul, stop);
+    depth.connect(o.detune);
+    o.connect(a); a.connect(g);
+    o.start(t); o.stop(stop);
   }
-  const src = ac.createBufferSource(), out = ac.createGain();
-  src.buffer = buf; out.gain.value = amp; out.connect(to);
-  for (const [hz, Q, g] of [[230, 0.9, 0.22], [620 * fm, 4, 1], [1300 * fm, 6, 1.1], [2550 * fm, 8, 0.9]]) {
-    const f = ac.createBiquadFilter(), fg = ac.createGain();
-    f.type = "bandpass"; f.frequency.value = hz; f.Q.value = Q; fg.gain.value = g;
-    src.connect(f); f.connect(fg); fg.connect(out);
-  }
-  src.start(t);
+  g.connect(to);
+  vib.start(t); vib.stop(stop);
 }
-// 탭마다 고르는 변형. at = 시작 시각, f0 = 기본음, path = 빠르게 올랐다 떨어지는 피치
-const KKUL = [[0, 0.82], [0.22, 1.18], [1, 0.76]];
-export const GRUNTS = {
-  kkul: [{ at: 0, dur: 0.19, f0: 165, path: KKUL, amp: 2.2 }],
-  kkulkkul: [{ at: 0, dur: 0.15, f0: 155, path: KKUL, amp: 2.2 }, { at: 0.19, dur: 0.19, f0: 180, path: KKUL, amp: 2.2 }],
-  kkuing: [{ at: 0, dur: 0.32, f0: 205, path: [[0, 0.8], [0.18, 1], [0.6, 1.38], [1, 1.02]], amp: 2.2, rough: 0.18, jit: 0.02, fm: 1.08 }],
-  kungkung: [0, 0.125].map((at) => ({ at, dur: 0.085, f0: 120, path: [[0, 1.15], [1, 0.8]], amp: 1.65, rough: 0.5, noise: 0.55, fm: 0.92 })),
-};
-export function grunt(ac, to, t, key, pitch = 1) {
-  for (const { at, f0, ...v } of GRUNTS[key]) voice(ac, to, t + at, { ...v, f0: f0 * pitch });
-}
-// 직전과 다른 변형을 고름
-export function nextGrunt(prev) {
-  const keys = Object.keys(GRUNTS).filter((k) => k !== prev);
-  return keys[Math.floor(Math.random() * keys.length)];
+// 직전과 다른 피치를 고름
+export function nextPitch(prev) {
+  const ps = BOING_PITCHES.filter((p) => p !== prev);
+  return ps[Math.floor(Math.random() * ps.length)];
 }
 // 퐁: 부드러운 사인파 1음
 export const pong = (ac, to, t) => note(ac, to, "sine", t, 0.1, 0.12, [[0, 560], [0.09, 820]]);
@@ -103,10 +90,10 @@ export function play(name) {
     out ||= master(ac);
     wake();
     const t = ac.currentTime + 0.005;
-    if (name === "grunt") { // 쿨다운 없음: 이전 울음은 짧게 줄이고 바로 새로 시작
+    if (name === "boing") { // 쿨다운 없음: 이전 소리는 짧게 줄이고 바로 새로 시작
       bus?.gain.setTargetAtTime(0, ac.currentTime, 0.012);
       bus = ac.createGain(); bus.connect(out);
-      grunt(ac, bus, t, last = nextGrunt(last), 0.93 + Math.random() * 0.17);
+      boing(ac, bus, t, last = nextPitch(last));
       return;
     }
     const now = performance.now() / 1000;

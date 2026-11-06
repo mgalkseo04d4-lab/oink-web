@@ -257,9 +257,15 @@ globalThis.addEventListener = (ev, f) => { arm = f; };
 globalThis.AudioContext = class { constructor() { acMade++; throw new Error("no audio"); } };
 const snd = await import("./sound.js");
 snd.play("pong"); assert.equal(acMade, 0);
-arm(); snd.setSoundOn(false); snd.play("grunt"); assert.equal(acMade, 0);
-snd.setSoundOn(true); snd.play("grunt"); assert.equal(acMade, 1);
-// 돼지 탭 변형: 3종 이상이고 연속으로 같은 것이 나오지 않음
-assert.ok(Object.keys(snd.GRUNTS).length >= 3);
-for (let i = 0, p = null; i < 200; i++) { const k = snd.nextGrunt(p); assert.ok(snd.GRUNTS[k]); assert.notEqual(k, p); p = k; }
+arm(); snd.setSoundOn(false); snd.play("boing"); assert.equal(acMade, 0);
+snd.setSoundOn(true); snd.play("boing"); assert.equal(acMade, 1);
+// 돼지 탭 뽀잉: 변형이 3종 이상이고 연속으로 같은 피치가 없으며, 어떤 피치든 음역·길이가 뽀잉 범위 안
+assert.ok(snd.BOING_PITCHES.length >= 3);
+for (const p of snd.BOING_PITCHES) {
+  assert.ok(snd.BOING.start * p >= 350 && snd.BOING.start * p <= 500);
+  assert.ok(snd.BOING.peak * p >= 900 && snd.BOING.peak * p <= 1300);
+  assert.ok(snd.BOING.end * p < snd.BOING.peak * p);
+  assert.ok(snd.BOING.dur / p >= 0.2 && snd.BOING.dur / p <= 0.3);
+}
+for (let i = 0, p = null; i < 200; i++) { const k = snd.nextPitch(p); assert.ok(snd.BOING_PITCHES.includes(k)); assert.notEqual(k, p); p = k; }
 console.log("selfcheck ok");

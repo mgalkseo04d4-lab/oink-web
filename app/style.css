@@ -281,6 +281,11 @@ button.danger { background: var(--critical-soft); }
 .pig.calm.pop { animation: squash .5s var(--spring), breathe 3.2s ease-in-out .5s infinite; }
 @keyframes breathe { 50% { transform: translateY(-5px) scale(1.015, .99); } }
 @keyframes squash { 0% { transform: scale(1, 1); } 30% { transform: scale(1.12, .86); } 60% { transform: scale(.94, 1.08); } 100% { transform: scale(1, 1); } }
+/* 탭 눌림: 표정·숨쉬기 애니메이션이 걸린 img를 건드리지 않게 감싸는 칸에. 이미지 가로 중앙 = 몸통 축, 99% = 발바닥(세 표정 불투명 바닥 98.9~99.8%) */
+.pigsquish { transform-origin: 50% 99%; }
+.pigsquish.squish { animation: pigsquish .35s ease-out; }
+@keyframes pigsquish { 30% { transform: scale(1.08, .9); } 65% { transform: scale(.96, 1.05); } }
+@media (prefers-reduced-motion: reduce) { .pigsquish.squish { animation: none; } }
 /* 입체 노란 꽃(꽃잎 5개 + 가운데) */
 .fl.f1 { left: -16px; top: 20px; }
 .fl.f2 { right: -14px; top: 0; width: 30px; height: 30px; }

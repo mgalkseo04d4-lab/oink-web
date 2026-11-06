@@ -487,8 +487,16 @@ function showSound() { $("soundToggle").classList.toggle("on", soundOn()); $("so
 showSound();
 $("soundToggle").addEventListener("click", () => { setSoundOn(!soundOn()); showSound(); });
 // 흔들리는 돼지에서 손가락이 살짝 벗어나도 click이 놓치지 않게 감싸는 칸에 건다. 길게 눌러도 이미지 메뉴 안 뜸
-const pigBox = $("pig").parentElement;
-pigBox.addEventListener("click", () => play("grunt"));
+const pigBox = $("pig").closest(".pigwrap"), pigSquish = $("pigSquish");
+// 눌림: 진행 중이면 처음부터 다시. 끝나면 클래스를 빼서 탭을 오갈 때 다시 재생되지 않게(img에서 올라온 이벤트는 제외)
+const squishDone = (e) => { if (e.target === pigSquish) pigSquish.classList.remove("squish"); };
+pigSquish.addEventListener("animationend", squishDone);
+pigSquish.addEventListener("animationcancel", squishDone);
+pigBox.addEventListener("click", () => {
+  play("boing");
+  const running = pigSquish.getAnimations()[0];
+  if (running) running.currentTime = 0; else pigSquish.classList.add("squish");
+});
 pigBox.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("click", (e) => { if (e.target.closest("button:not([data-size]), [role=button]")) play("pong"); });
 // 시스템 알림은 권한이 이미 허용된 경우에만 덤으로(권한 요청 안 함). 핵심은 앱 안 토스트 + 알림 탭.
