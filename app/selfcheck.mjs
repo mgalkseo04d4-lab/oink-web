@@ -251,4 +251,12 @@ assert.deepEqual(odorCard({ odor_index: null, err: 0 }), { text: "—", badge: "
 assert.deepEqual(odorCard({ odor_index: null, err: 4 }), { text: "—", badge: "교정 전", warm: true });
 assert.deepEqual(odorCard({ odor_index: 1.27, err: 1 }), { text: "1.3", badge: "실측", warm: false });
 for (const v of [null, undefined, NaN, "1.1"]) assert.equal(odorWord({ odor_index: v }), "확인 중");
+// 효과음: 첫 입력 전·끄기 상태에는 AudioContext를 만들지 않고, 소리 실패가 밖으로 새지 않음
+let acMade = 0, arm;
+globalThis.addEventListener = (ev, f) => { arm = f; };
+globalThis.AudioContext = class { constructor() { acMade++; throw new Error("no audio"); } };
+const snd = await import("./sound.js");
+snd.play("pong"); assert.equal(acMade, 0);
+arm(); snd.setSoundOn(false); snd.play("grunt"); assert.equal(acMade, 0);
+snd.setSoundOn(true); snd.play("grunt"); assert.equal(acMade, 1);
 console.log("selfcheck ok");

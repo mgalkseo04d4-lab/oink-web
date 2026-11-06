@@ -1,4 +1,5 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
+import { play, soundOn, setSoundOn } from "./sound.js";
 import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
@@ -481,6 +482,12 @@ function setDemo(on) {
 }
 setDemo(demo);
 $("demoToggle").addEventListener("click", () => { setDemo(!demo); render(); });
+// 효과음: 사용자 탭에만 반응(데이터 수신·경고에는 소리 없음). 투입 버튼은 기록 성공 때 짤랑만
+function showSound() { $("soundToggle").classList.toggle("on", soundOn()); $("soundToggle").setAttribute("aria-pressed", String(soundOn())); }
+showSound();
+$("soundToggle").addEventListener("click", () => { setSoundOn(!soundOn()); showSound(); });
+$("pig").addEventListener("click", () => play("grunt"));
+document.addEventListener("click", (e) => { if (e.target.closest("button:not([data-size]), [role=button]")) play("pong"); });
 // 시스템 알림은 권한이 이미 허용된 경우에만 덤으로(권한 요청 안 함). 핵심은 앱 안 토스트 + 알림 탭.
 const canNotify = () => typeof Notification !== "undefined";
 
@@ -576,6 +583,7 @@ const onFeed = (e) => {
     store.set(KEY_EV, JSON.stringify(events)); render();
   });
   $("feedMsg").textContent = $("homeFeedMsg").textContent = `기록했어요 (${size}) — 지금부터 예측 곡선 시작`;
+  play("chime");
   render();
 };
 // 투입 버튼 하트 콘페티(시각 효과만, 기록 로직과 무관). 움직임 줄이기 설정이면 CSS가 숨김
