@@ -43,7 +43,7 @@
 * **외곽선 (Border):** 필요한 경우 1.5px의 은은한 스트로크 (`#FFE6EB`)
 
 ### 🔤 타이포그래피 (Typography)
-* 둥글둥글한 라운드 산세리프 서체 권장 (Pretendard GOV Round, Quicksand, Nunito, 또는 라운드 고딕 계열)
+* 시스템 기본 글꼴 하나로 통일 (`style.css`의 `--font`). 웹폰트 없음
 * 텍스트 톤: 친절하고 다정한 구어체 + 이모지 적극 활용
 
 ---
