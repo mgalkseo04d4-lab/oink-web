@@ -138,6 +138,19 @@ export function autoRange(vs, minSpan, cap = Infinity) {
 }
 // 앱이 열려 있는 동안 OFF 유지: #2는 30초 무수신이면 auto로 돌아가므로 10초마다 재발행
 export const HOLD_RESEND_MS = 10000;
+// firmware2는 "래치 뒤에 받은 off"를 해제 조건으로 쓴다(heater_core.h) → 자동 흐름은 래치 중 off·auto를 보내면 안 됨. 사람이 누르는 '히터 끄기'는 이 판단을 거치지 않는다.
+// latched가 boolean이 아니면(board2 없음·구 펌웨어) "unknown" = 안전 쪽으로 보내지 않음
+export const latchStatus = (b2) => (b2?.latched === true ? "latched" : b2?.latched === false ? "clear" : "unknown");
+// r = hotFoodStep 결과, 방금 받은 텔레메트리의 b2로 판단(텔레메트리 수신 때만 호출되므로 오래된 값으로 보내지 않음).
+// 처리 중 래치를 한 번 보면(latchSeen) 풀린 뒤에도 그 처리가 끝날 때까지 off·auto 없음: 복귀는 사람이 결정.
+// 반환 cmd: "off"(첫 발행) | "auto"(종료) | "hold"(재발행) | null, blocked: 발행할 차례였는데 막음(off·auto만)
+export function hotHeaterGuard(r, b2, resendDue) {
+  const latch = latchStatus(b2);
+  const st = r.st.active && latch === "latched" && !r.st.latchSeen ? { ...r.st, latchSeen: true } : r.st;
+  const safe = latch === "clear" && !st.latchSeen;
+  return { st, cmd: !safe ? null : r.action ?? (st.active && resendDue ? "hold" : null), blocked: !!r.action && !safe };
+}
+export const HOT_MSG_BLOCKED = "과열 차단 중이거나 상태를 확인할 수 없어 뜨거운 음식물 처리의 히터 명령을 보내지 않았어요. 기기 상태를 확인해 주세요.";
 // 실측 CO₂ 추세 보조 문구(slope: ppm/분, co2Slope 결과)
 export function co2TrendText(slope) {
   if (slope == null) return "";
@@ -155,8 +168,15 @@ export function co2Word(b1, slope) {
 export function odorWord(b1) {
   if (!b1) return "연결 안 됨";
   const v = b1.odor_index;
-  if (typeof v !== "number") return "확인 중";
+  if (!Number.isFinite(v)) return "확인 중";
   return v < 1.3 ? "상쾌해요" : v < 2 ? "조금 나요" : "냄새 심해요";
+}
+// 냄새 지수 카드: R0/Rs 비율(깨끗한 공기 = 1). err 비트 4 = OINK_ERR_H2S_WARMUP(Oink2Proto.h, board1.err로 전달)
+export const ERR_H2S_WARMUP = 1 << 2;
+export function odorCard(b1) {
+  if (!b1) return { text: "—", badge: "", warm: false };
+  const ok = Number.isFinite(b1.odor_index);
+  return { text: ok ? b1.odor_index.toFixed(1) : "—", badge: ok ? "실측" : "교정 전", warm: !!(b1.err & ERR_H2S_WARMUP) };
 }
 export function tempWord(t) {
   if (typeof t !== "number") return "확인 중";
@@ -173,16 +193,19 @@ export const TEMP_ALERT = 45;   // 심부온도 ℃ 이상이면 이상
 export const CO2_ALERT = 1500;  // CO₂ ppm 이상이면 이상(co2_status==1일 때만)
 
 // 반환: { state, reasons } — reasons: "hot" | "co2"
-export function homeState({ online, lastSeen, now, b1 }) {
-  if (!online || !lastSeen || now - lastSeen > STALE_MS || !b1) return { state: "sleep", reasons: [] };
+export function homeState({ online, lastSeen, now, b1, b2 }) {
+  if (!online || !lastSeen || now - lastSeen > STALE_MS) return { state: "sleep", reasons: [] };
+  const local = b2?.ctrl_src === "local"; // 기기는 동작 중(#1 끊김, 대체 제어) — 잠자는 표시 금지
+  if (!b1) return { state: local ? "local" : "sleep", reasons: [] };
   const reasons = [];
   if (Number.isFinite(b1.temp1_c) && b1.temp1_c >= TEMP_ALERT) reasons.push("hot");
   if (b1.co2_status === 1 && Number.isFinite(b1.co2_ppm) && b1.co2_ppm >= CO2_ALERT) reasons.push("co2");
-  return { state: reasons.length ? "alert" : "calm", reasons };
+  return { state: reasons.length ? "alert" : local ? "local" : "calm", reasons };
 }
 
 export function homeText({ state, reasons }) {
   if (state === "sleep") return "쿨쿨 자는 중… 💤";
+  if (state === "local") return LOCAL_CTRL_TEXT;
   if (state === "calm") return "편안해요 😊";
   if (reasons.includes("hotfood")) return "뜨거운 음식이 들어왔어요! 히터를 껐어요";
   if (reasons.includes("hot") && reasons.includes("co2")) return "너무 덥고 숨이 막혀요!";
@@ -196,7 +219,7 @@ export function stateEvents(prev, cur, now) {
   if (prev.gwOnline && !cur.gwOnline) ev.push({ ts: now, kind: "gw_off", text: "Oink 연결이 끊겼어요" });
   if (!prev.gwOnline && cur.gwOnline) ev.push({ ts: now, kind: "gw_on", text: "Oink가 다시 연결됐어요" });
   if (prev.state !== "alert" && cur.state === "alert") ev.push({ ts: now, kind: "alert_on", text: `이상: ${homeText(cur)}` });
-  if (prev.state === "alert" && cur.state === "calm") ev.push({ ts: now, kind: "alert_off", text: "다시 편안해졌어요" });
+  if (prev.state === "alert" && (cur.state === "calm" || cur.state === "local")) ev.push({ ts: now, kind: "alert_off", text: "다시 편안해졌어요" });
   return ev;
 }
 
@@ -308,6 +331,14 @@ export const FAULT_WORD = {
 };
 export const LOCAL_CTRL_TEXT = "#1 끊김, 대체 제어 중";
 export const LOCAL_TARGET_C = 40; // firmware2 config.h LOCAL_TARGET_C
+// 2보드(firmware2) 판별: cloud-dashboard/link.js isTwoBoard와 같은 기준. firmware2엔 가짜값 모드가 없다.
+export const isTwoBoard = (tele, status) => status?.boards === 2 || !!(tele && ("board_ok" in tele || (tele.board2 && "target_c" in tele.board2)));
+export const b1SrcLabel = (two, fake) => (two || !fake ? "실측" : "시험값");
+// 출처 배지: 값이 없으면("—") 주장하지 않음
+export const srcBadge = (val, label) => (Number.isFinite(val) ? label : "");
+// 카드에 표시하는 값(없으면 null)
+export const co2CardValue = (b1) => (b1?.co2_status === 1 && Number.isFinite(b1.co2_ppm) ? b1.co2_ppm : null);
+export const tempCardValue = (b1) => (Number.isFinite(b1?.temp1_c) ? b1.temp1_c : null);
 export const faultWord = (b2) => FAULT_WORD[b2?.fault_text] ?? "";
 // 기기 상태 문구: fault가 대체 제어보다 우선
 export const deviceNote = (b2) => faultWord(b2) || (b2?.ctrl_src === "local" ? LOCAL_CTRL_TEXT : "");

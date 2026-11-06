@@ -104,10 +104,10 @@
       <div class="pigwrap sp"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><img src="img/pig_happy.webp" alt="" class="sp-pig"></div>
       <p class="sp-title">우리집 미생물</p>
     </div>
-    <!-- 시작 화면 2(목업 2번): 아래에서 고개 내민 돼지, 귀·꼬리는 화면 안 -->
+    <!-- 시작 화면 2(목업 2번): 돼지 전체(귀·발·꼬리)가 화면 안 -->
     <div class="sc sc2" aria-hidden="true">
       <p class="sp-title pink">우리집 미생물</p>
-      <div class="peek"><span class="pk"><svg class="lines" viewBox="0 0 80 50"><path d="M12 40 l-8 -14 M34 32 l-2 -20 M52 36 l10 -16" stroke="#3D2E2E" stroke-width="5" stroke-linecap="round" fill="none"/></svg><img src="img/pig_base_lg.webp" alt="" width="1000" height="755"></span></div>
+      <div class="peek"><span class="pk"><svg class="lines" viewBox="0 0 80 50"><path d="M12 40 l-8 -14 M34 32 l-2 -20 M52 36 l10 -16" stroke="#3D2E2E" stroke-width="5" stroke-linecap="round" fill="none"/></svg><img src="img/pig_base_lg.webp" alt="" width="1000" height="739"></span></div>
     </div>
     <p class="sp-hint"><span class="lbl"><span class="dots"><i></i><i></i></span>탭해서 계속</span></p>
   </div>
@@ -138,12 +138,12 @@
       <div id="tab-home" class="tab" role="tabpanel" aria-labelledby="tb-home">
         <article class="hero calm" id="hero">
           <p class="bubble"><svg class="bell" aria-hidden="true"><use href="#i-bell"/></svg><span id="moodText">쿨쿨 자는 중… 💤</span></p>
-          <div class="pigwrap"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><svg class="zz" aria-hidden="true"><use href="#i-zz"/></svg><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="600" height="453"></div>
+          <div class="pigwrap"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><svg class="zz" aria-hidden="true"><use href="#i-zz"/></svg><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="600" height="443"></div>
         </article>
 
         <div class="grid2">
-          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> <span class="src dq" id="dqCo2" hidden></span></p></article>
-          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> <span class="src dq" id="dqTemp" hidden></span></p></article>
+          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real" id="srcCo2" hidden></span> <span class="src dq" id="dqCo2" hidden></span></p></article>
+          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real" id="srcTemp" hidden></span> <span class="src dq" id="dqTemp" hidden></span></p></article>
           <article class="card stat tap" id="cAct" role="button" tabindex="0" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-bars"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
           <article class="card stat" id="cFeed"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>최근 투입</p><p class="big"><span id="vFeed">—</span></p><p id="nFeed" class="num"></p><p class="num tiny">투입 기록</p></article>
         </div>
@@ -162,7 +162,7 @@
 
       <!-- 실시간 그래프(홈 CO₂·심부온도 카드에서 진입) -->
       <div id="tab-live" class="tab" role="region" aria-label="실시간 그래프" hidden>
-        <div class="row between"><button type="button" id="liveBack" class="ghost small">← 홈</button><span id="liveSpan" class="badge">최근 2분 · 실측</span></div>
+        <div class="row between"><button type="button" id="liveBack" class="ghost small">← 홈</button><span id="liveSpan" class="badge">최근 2분</span></div>
         <article class="card">
           <p class="kicker" id="liveTitle">CO₂</p>
           <p class="big live"><span id="liveVal">—</span><small id="liveUnit">ppm</small></p>
@@ -180,7 +180,7 @@
           <div class="card-head"><p class="kicker">CO₂ 변화</p><span class="row"><span class="badge demo" hidden>시연 배속 · 이스트 양성 대조</span><span id="ampBadge" class="badge">보정 전</span></span></div>
           <svg id="gPred" class="spark" viewBox="0 0 320 190" role="img" aria-label="음식물 투입 후 예상 CO₂(점선), 예측 범위(회색 띠), 실측 CO₂(실선)"></svg>
           <p class="legend"><span><i class="lg-pred"></i>예상값</span><span><i class="lg-band"></i>예측 범위</span><span><i class="lg-real"></i>실측값</span></p>
-          <p class="muted tiny"><span class="src model">모델 추정치</span> <span class="src real b1src">실측</span></p>
+          <p class="muted tiny"><span class="src model">모델 추정치</span> <span class="src real" id="srcPred" hidden></span></p>
         </article>
         <article class="card center-card">
           <p class="kicker">예측 대비 발생량</p>
@@ -197,7 +197,7 @@
         </article>
         <p class="muted">앱을 열어 둔 동안 쌓여요. 닫으면 처음부터 다시 쌓여요.</p>
         <div class="grid2">
-          <article class="card stat"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p class="num">0~100</p><p class="num tiny"><span class="src test">시험값</span> MQ 예열 중</p></article>
+          <article class="card stat"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p class="num">깨끗한 공기 = 1</p><p class="num tiny"><span class="src dq" id="srcOdor" hidden></span> <span class="src dq" id="odorWarm" hidden>예열 중</span></p></article>
           <article class="card stat" id="cProg"><p class="kicker">분해 진행 <span class="badge demo" hidden>시연 배속</span></p><div class="bar"><div id="progBar"></div></div><p id="progText" class="num">음식물을 넣으면 보여요</p><p id="progAct" class="num act"></p><p id="progTrend" class="num"></p><p class="num tiny"><span class="src model">모델 추정치</span></p></article>
         </div>
         <article class="card">

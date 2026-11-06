@@ -4,7 +4,7 @@ import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odo
   homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
-  db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT } from "./logic.mjs";
+  db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, tempCardValue, odorCard, hotHeaterGuard, latchStatus } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -192,4 +192,63 @@ assert.equal(ctrlTargetOf({ ctrl_src: "local", target_c: 30 }), 40);
 assert.equal(ctrlTargetOf({ ctrl_src: "core", target_c: 30 }), 30);
 assert.equal(dbEventText({ kind: "fault", detail: { to: "local_sensor" } }), "기기 상태: 히터면 온도 센서 오류로 히터를 껐어요");
 assert.equal(dbEventText({ kind: "fault", detail: { to: "ok" } }), "기기 오류가 해제됐어요");
+// 대체 제어 중엔 잠자는 표시 금지, 진짜 끊김만 sleep, 이상이 우선
+assert.equal(homeState({ ...L, b1: null, b2: { ctrl_src: "local" } }).state, "local");
+assert.equal(homeState({ ...L, b1: { temp1_c: 30 }, b2: { ctrl_src: "local" } }).state, "local");
+assert.equal(homeState({ ...L, b1: { temp1_c: TEMP_ALERT }, b2: { ctrl_src: "local" } }).state, "alert");
+assert.equal(homeState({ ...L, online: false, b1: null, b2: { ctrl_src: "local" } }).state, "sleep");
+assert.equal(homeState({ ...L, b1: null, b2: { ctrl_src: "core" } }).state, "sleep");
+assert.equal(homeText({ state: "local", reasons: [] }), LOCAL_CTRL_TEXT);
+assert.equal(stateEvents({ state: "alert", gwOnline: true }, { state: "local", reasons: [], gwOnline: true }, 1)[0].kind, "alert_off");
+// 2보드 판별·출처 배지
+assert.equal(isTwoBoard({ board_ok: true }), true);
+assert.equal(isTwoBoard({ board2: { target_c: 37 } }), true);
+assert.equal(isTwoBoard(null, { boards: 2 }), true);
+assert.equal(isTwoBoard({ board2: { mode: "auto" } }), false);
+assert.equal(b1SrcLabel(true, true), "실측");
+assert.equal(b1SrcLabel(false, true), "시험값");
+assert.equal(b1SrcLabel(false, false), "실측");
+// 값 없는 카드엔 출처 배지 없음: #1 끊김(대체 제어) = board1 null, 목표 문구는 유지
+assert.equal(srcBadge(co2CardValue(null), "실측"), "");
+assert.equal(srcBadge(tempCardValue(null), "실측"), "");
+assert.equal(ctrlTargetOf({ ctrl_src: "local", target_c: 30 }), 40);
+// CO₂ 센서 준비 중·온도 결측도 같은 규칙, 값이 있으면 표시(0도 값)
+assert.equal(srcBadge(co2CardValue({ co2_status: 0, co2_ppm: 640 }), "실측"), "");
+assert.equal(srcBadge(tempCardValue({ temp1_c: null }), "실측"), "");
+assert.equal(srcBadge(co2CardValue({ co2_status: 1, co2_ppm: 640 }), "실측"), "실측");
+assert.equal(srcBadge(tempCardValue({ temp1_c: 0 }), "시험값"), "시험값");
+// 래치 중 off·auto 미발행(뜨거운 음식물 자동 흐름)
+const CLR = { latched: false }, LAT = { latched: true };
+const hotA = { active: true, since: 1, src: "t1", preTemp: 30, lastHit: 1 };
+const hotEnd = { ...hotA, active: false };
+assert.equal(latchStatus(LAT), "latched"); assert.equal(latchStatus(CLR), "clear");
+assert.equal(latchStatus(null), "unknown"); assert.equal(latchStatus({ mode: "auto" }), "unknown");
+// 평상시: 첫 off·재발행·종료 auto 그대로
+assert.equal(hotHeaterGuard({ st: hotA, action: "off" }, CLR, true).cmd, "off");
+assert.equal(hotHeaterGuard({ st: hotA, action: null }, CLR, true).cmd, "hold");
+assert.equal(hotHeaterGuard({ st: hotA, action: null }, CLR, false).cmd, null);
+assert.equal(hotHeaterGuard({ st: hotEnd, action: "auto" }, CLR, true).cmd, "auto");
+// 래치 중: 첫 off·재발행·종료 auto 모두 없음
+let hg = hotHeaterGuard({ st: hotA, action: "off" }, LAT, true);
+assert.equal(hg.cmd, null); assert.equal(hg.blocked, true); assert.equal(hg.st.latchSeen, true);
+hg = hotHeaterGuard({ st: hotA, action: null }, LAT, true);
+assert.equal(hg.cmd, null); assert.equal(hg.blocked, false); assert.equal(hg.st.latchSeen, true);
+hg = hotHeaterGuard({ st: hotEnd, action: "auto" }, LAT, true);
+assert.equal(hg.cmd, null); assert.equal(hg.blocked, true);
+// 처리 중 래치를 본 뒤엔 풀려도(clear) 재발행·auto 없음
+const hotSeen = { ...hotA, latchSeen: true };
+assert.equal(hotHeaterGuard({ st: hotSeen, action: null }, CLR, true).cmd, null);
+assert.equal(hotHeaterGuard({ st: { ...hotSeen, active: false }, action: "auto" }, CLR, true).cmd, null);
+// 상태 모름(board2 없음·latched 없음): 보내지 않음, 다음에 clear면 재발행 재개
+assert.equal(hotHeaterGuard({ st: hotA, action: "off" }, null, true).cmd, null);
+assert.equal(hotHeaterGuard({ st: hotEnd, action: "auto" }, { mode: "auto" }, true).cmd, null);
+assert.equal(hotHeaterGuard({ st: hotA, action: null }, null, true).st.latchSeen, undefined);
+// hotFoodStep과 연결: 종료 시 latchSeen 유지
+assert.equal(hotFoodStep(hotSeen, { series: { t1: [] }, co2s: [], now: 2, cur: { t1: 30 } }).st.latchSeen, true);
+// 냄새 지수 카드: 비율 소수 1자리, null = 교정 전, 연결 없음 = 표시 없음, 예열 비트
+assert.deepEqual(odorCard(null), { text: "—", badge: "", warm: false });
+assert.deepEqual(odorCard({ odor_index: null, err: 0 }), { text: "—", badge: "교정 전", warm: false });
+assert.deepEqual(odorCard({ odor_index: null, err: 4 }), { text: "—", badge: "교정 전", warm: true });
+assert.deepEqual(odorCard({ odor_index: 1.27, err: 1 }), { text: "1.3", badge: "실측", warm: false });
+for (const v of [null, undefined, NaN, "1.1"]) assert.equal(odorWord({ odor_index: v }), "확인 중");
 console.log("selfcheck ok");

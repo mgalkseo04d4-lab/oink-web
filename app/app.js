@@ -1,8 +1,8 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
-  DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, HOT_MSG_OFF, HOT_MSG_AUTO, autoRange, CO2_MAX, HOLD_RESEND_MS,
+  DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
-  DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf } from "./logic.mjs";
+  DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, tempCardValue, odorCard, LOCAL_TARGET_C } from "./logic.mjs";
 
 const T = {
   status: "oink/gateway/status",
@@ -11,9 +11,10 @@ const T = {
   cmd: "oink/gateway/cmd",
   ack: "oink/gateway/cmd/ack", // firmware2: {"id","ok","msg"}
 };
-// 펌웨어 #1이 아직 가짜값(USE_FAKE_SENSORS) — 실측 전환 시 false로. CO₂·심부온도 배지가 "시험값"/"실측"으로 바뀐다.
-const FAKE_B1 = true;
-const B1_SRC = FAKE_B1 ? "시험값" : "실측";
+// 현재 2보드(firmware2/oink2_pig)는 가짜값 코드가 없어 #1 값은 모두 실측. true는 가짜값을 쓰는 펌웨어를 붙일 때만.
+const FAKE_B1 = false;
+const b1Src = () => b1SrcLabel(isTwoBoard(gw.tele, gw.status), FAKE_B1);
+const setSrcBadge = (el, val) => { const s = srcBadge(val, b1Src()); el.hidden = !s; el.textContent = s; el.classList.toggle("real", s === "실측"); el.classList.toggle("test", s === "시험값"); };
 const HEAT_TIMEOUT_MS = 10000; // 보낸 모드가 telemetry board2.mode에 반영될 때까지
 const GRAPH_MS = 10 * 60 * 1000;
 const $ = (id) => document.getElementById(id);
@@ -124,8 +125,15 @@ async function pollDbStatus() {
 }
 const co2All = () => mergeCo2(co2Hist, dbPts);
 
-for (const el of document.querySelectorAll(".b1src")) { el.textContent = B1_SRC; el.classList.toggle("real", !FAKE_B1); el.classList.toggle("test", FAKE_B1); }
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator) {
+  // 새 버전이 활성화되면 한 번 새로고침(캐시 우선이라 안 하면 배포 후 첫 화면이 옛 CSS·JS). 처음 설치(이전 controller 없음)엔 하지 않음.
+  const hadCtrl = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadCtrl && !reloaded) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.register("sw.js").then((r) => { // 폰 앱은 켜 둔 채 돌아오는 일이 많아 복귀 때도 확인
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) r.update().catch(() => {}); });
+  }).catch(() => {});
+}
 
 $("devName").value = store.get("oink.dev") || (/Mobi|Android|iPhone/i.test(navigator.userAgent) ? "내 폰" : "내 PC");
 $("devName").addEventListener("change", () => store.set("oink.dev", $("devName").value.trim()));
@@ -163,6 +171,7 @@ const valid = (b1) => b1?.co2_status === 1 && Number.isFinite(b1.co2_ppm);
 
 // ---- 예측(점선) vs 실측(실선) CO₂, x = 투입 후 곡선 시간 0~7일, y = ppm 한 축 ----
 function predGraph(svg, feedTs, now) {
+  setSrcBadge($("srcPred"), null); // 실측선이 그려질 때만 표시
   const W = 320, H = 190, L = 42, R = 10, Tp = 14, B = 24;
   if (!feedTs) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="sp-empty">음식물을 넣으면 예측 곡선이 그려져요</text>`; return; }
   if (co2Base?.feedTs !== feedTs) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="sp-empty">투입 후 첫 CO₂ 값을 기다리는 중이에요</text>`; return; }
@@ -200,8 +209,9 @@ function predGraph(svg, feedTs, now) {
     flush();
     for (const p of realV) if (p.flagged) g += `<circle cx="${x(p.h).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" class="sp-flag"/>`;
     const l = realV[realV.length - 1];
+    setSrcBadge($("srcPred"), l.v);
     g += `<circle cx="${x(l.h)}" cy="${y(l.v)}" r="4" fill="var(--primary)"/>`;
-    g += `<text x="${Math.min(x(l.h) + 6, W - R - 30)}" y="${y(l.v) + 16}" class="sp-lbl" fill="var(--primary)">${B1_SRC} ${Math.round(l.v)}</text>`;
+    g += `<text x="${Math.min(x(l.h) + 6, W - R - 30)}" y="${y(l.v) + 16}" class="sp-lbl" fill="var(--primary)">${b1Src()} ${Math.round(l.v)}</text>`;
   }
   svg.innerHTML = g;
 }
@@ -257,9 +267,9 @@ function spark(svg, pts, key, unit, color, now) {
 function render() {
   const now = Date.now();
   const fresh = gw.lastSeen && now - gw.lastSeen < 10000;
-  const b1 = fresh ? gw.tele?.board1 : null;
-  const b2 = fresh ? gw.tele?.board2 : null;
-  const hs0 = homeState({ online: gw.online, lastSeen: gw.lastSeen, now, b1 });
+  const b1 = fresh && gw.online ? gw.tele?.board1 : null;
+  const b2 = fresh && gw.online ? gw.tele?.board2 : null;
+  const hs0 = homeState({ online: gw.online, lastSeen: gw.lastSeen, now, b1, b2 });
   // 감지 후 OFF 유지 동안 빨강(알림은 hot_on으로 따로 남기므로 상태 전환 알림에는 넣지 않음)
   const hs = hotSt?.active && hs0.state !== "sleep" ? { state: "alert", reasons: ["hotfood", ...hs0.reasons] } : hs0;
   const online = !!(client?.connected && gw.online && fresh);
@@ -287,7 +297,7 @@ function render() {
   }
   pig.className = `${pigCls}${pig.classList.contains("pop") ? " pop" : ""}`;
   const latched = !!b2?.latched; // firmware2 과열 래치: 해제 = 식은 뒤 off 명령
-  const note = deviceNote(b2); // fault·대체 제어(#1 끊김이면 hs.state는 sleep이라 연결돼 있을 때만)
+  const note = deviceNote(b2); // fault·대체 제어
   const txt = latched && hs.state !== "sleep" && hs.state !== "alert" ? faultWord(b2) || "과열 차단 중이에요 — 식은 뒤 '히터 끄기'로 해제"
     : linked && note && hs.state !== "alert" ? note
     : ecoHome ? "에너지 아끼며 새근새근 낮잠 자는 중… zZ 🐽" : homeText(hs);
@@ -297,16 +307,22 @@ function render() {
   $("conn").className = `pill ${online ? "on" : ""}`;
   $("connText").textContent = !client?.connected ? "재연결 중" : online ? "Oink 연결됨" : "Oink 꺼져 있음";
 
-  const co2ok = b1?.co2_status === 1 && Number.isFinite(b1.co2_ppm);
-  $("vCo2").textContent = co2ok ? Math.round(b1.co2_ppm) : "—";
-  $("nCo2").textContent = !b1 ? "연결 안 됨" : !co2ok ? "센서 준비 중" : hs.reasons.includes("co2") ? "높아요!" : "좋아요";
+  const localCtrl = b2?.ctrl_src === "local"; // 펌웨어가 목표 40℃ 고정, 설정한 목표는 #1 복귀 후 적용
+  const showTgt = ctrlTargetOf(b2);
+  const co2v = co2CardValue(b1), co2ok = co2v != null;
+  setSrcBadge($("srcCo2"), co2v);
+  $("vCo2").textContent = co2ok ? Math.round(co2v) : "—";
+  $("nCo2").textContent = !b1 ? (localCtrl ? "#1 끊김" : "연결 안 됨") : !co2ok ? "센서 준비 중" : hs.reasons.includes("co2") ? "높아요!" : "좋아요";
   $("cCo2").classList.toggle("hot", hs.reasons.includes("co2"));
-  const t = b1?.temp1_c;
-  $("vTemp").textContent = Number.isFinite(t) ? t.toFixed(1) : "—";
-  $("nTemp").textContent = !b1 ? "연결 안 됨" : hs.reasons.includes("hot") ? "너무 뜨거워요!"
-    : Number.isFinite(b2?.target_c) ? `목표 ${b2.target_c.toFixed(1)}℃` : "적당해요";
+  const t = tempCardValue(b1);
+  setSrcBadge($("srcTemp"), t);
+  $("vTemp").textContent = t != null ? t.toFixed(1) : "—";
+  $("nTemp").textContent = hs.reasons.includes("hot") ? "너무 뜨거워요!" : Number.isFinite(showTgt) ? `목표 ${+showTgt.toFixed(1)}℃` : !b1 ? "연결 안 됨" : "적당해요";
   $("cTemp").classList.toggle("hot", hs.reasons.includes("hot"));
-  $("vOdor").textContent = Number.isFinite(b1?.odor_index) ? Math.round(b1.odor_index) : "—";
+  const odor = odorCard(b1);
+  $("vOdor").textContent = odor.text;
+  $("srcOdor").hidden = !odor.badge; $("srcOdor").textContent = odor.badge; $("srcOdor").className = `src ${odor.badge === "실측" ? "real" : "dq"}`;
+  $("odorWarm").hidden = !odor.warm;
 
   const feedTs = lastFeedTs();
   const p = decompProgress(feedTs, now, speed());
@@ -331,20 +347,21 @@ function render() {
   const hb = $("heatBadge");
   if (!b2) { hb.textContent = "연결 안 됨"; hb.className = "badge"; }
   else if (b2.reasons) { hb.textContent = "안전 OFF"; hb.className = "badge warn"; }
+  else if (localCtrl) { hb.textContent = b2.heater_on ? "대체 제어 · 데우는 중" : "대체 제어 · 쉬는 중"; hb.className = "badge warn"; }
   else if (hm === "eco") { hb.textContent = b2.heater_on ? "🌱 절전 가열 중" : "🌱 절전 대기 중"; hb.className = "badge eco"; }
   else { hb.textContent = b2.heater_on ? "데우는 중" : "쉬는 중"; hb.className = `badge ${b2.heater_on ? "good" : ""}`; }
-  $("heatMode").textContent = !b2 ? "연결 안 됨" : hm === "auto" ? "자동" : hm === "eco" ? "🌱 에코 절전" : hm === "off" ? "꺼짐(OFF)" : hm === "on" ? "켜짐(ON)" : "펌웨어 대기";
-  $("ecoNote").hidden = hm !== "eco";
+  $("heatMode").textContent = !b2 ? "연결 안 됨" : hm === "auto" ? "자동" : hm === "eco" ? "🌱 에코 절전" : hm === "off" ? "꺼짐(OFF)" : "펌웨어 대기";
+  $("ecoNote").hidden = hm !== "eco" || localCtrl;
   for (const el of document.querySelectorAll(".latchNote")) {
     el.hidden = !latched;
     el.textContent = `🔒 ${b2?.fault_text === "no_rise" ? faultWord(b2) : "과열 차단(래치) — 식은 뒤 '히터 끄기'로 해제해요"}`;
   }
-  $("devNote").hidden = !note || latched; $("devNote").textContent = note;
+  $("devNote").hidden = !note || latched; $("devNote").textContent = localCtrl && !faultWord(b2) ? `${note} — 지금 목표는 ${LOCAL_TARGET_C}℃ 고정, 모드 설정은 #1 연결이 돌아오면 적용돼요` : note;
   // 홈 모드 칩 + 절전 토글(실제 상태는 telemetry 기준 → 실패하면 자연히 원래 상태로 돌아감)
   const chip = $("modeChip");
   chip.hidden = !hm;
   chip.className = `chip ${hm || ""}`;
-  chip.textContent = hm === "eco" ? "🌱 절전 모드" : hm === "off" ? "히터 꺼짐" : hm === "auto" ? "자동 모드" : hm || "";
+  chip.textContent = localCtrl && hm !== "off" ? `대체 제어 ${LOCAL_TARGET_C}℃` : hm === "eco" ? "🌱 절전 모드" : hm === "off" ? "히터 꺼짐" : hm === "auto" ? "자동 모드" : hm || "";
   const busy = !!pendingHeat && !pendingHeat.auto && (pendingHeat.want === "eco" || pendingHeat.want === "auto");
   const tg = $("ecoToggle");
   tg.hidden = hm === "off";
@@ -355,6 +372,7 @@ function render() {
   tg.disabled = !client?.connected || !hm || busy;
   $("ecoCard").classList.toggle("on", hm === "eco");
   $("ecoSub").textContent = !hm ? "기기와 연결되면 바꿀 수 있어요" : busy ? "기기에 보내는 중…"
+    : localCtrl ? "#1 연결이 돌아오면 적용돼요"
     : hm === "eco" ? "목표 온도 30℃로 낮춰 히터 가동을 줄여요" : "목표 37℃로 분해를 도와요";
   const ct = b2?.ctrl_temp_c ?? b1?.temp1_c;
   $("heatTemps").textContent = !b2 ? "" : [Number.isFinite(ct) ? `${ct.toFixed(1)}℃` + (Number.isFinite(b2.target_c) ? ` → ${ctrlTargetOf(b2)}℃` : "") : "",
@@ -411,8 +429,9 @@ function render() {
     $("liveTitle").textContent = isCo2 ? "CO₂" : "심부 온도";
     $("liveUnit").textContent = unit;
     $("liveWin").textContent = liveMs === 60000 ? "2분" : "60초";
-    $("liveSpan").textContent = `최근 ${liveMs === 60000 ? "60초" : "2분"} · ${B1_SRC}`;
     const lp = pts.filter((q) => now - q.t <= 12000).pop();
+    const liveSrc = srcBadge(lp?.v, b1Src());
+    $("liveSpan").textContent = `최근 ${liveMs === 60000 ? "60초" : "2분"}${liveSrc ? ` · ${liveSrc}` : ""}`;
     $("liveVal").textContent = lp ? lp.v.toFixed(d) : "—";
     const ref = liveBase != null ? pts.find((q) => q.t >= liveBase) : null;
     const dv = ref && lp ? lp.v - ref.v : null;
@@ -497,7 +516,7 @@ function onMessage(topic, buf) {
     }
     return;
   }
-  if (topic === T.status) gw.online = !!msg.online;
+  if (topic === T.status) { gw.online = !!msg.online; gw.status = msg; }
   else if (topic === T.tele) {
     gw.tele = msg; gw.online = true; gw.lastSeen = Date.now();
     const b1 = msg.board1;
@@ -514,12 +533,14 @@ function onMessage(topic, buf) {
     if (now - lastCo2Save > 30000) { lastCo2Save = now; store.set(KEY_CO2, JSON.stringify(co2Hist)); }
     if (client?.connected) {
       const r = hotFoodStep(hotSt, { series: { t1: tempHist }, co2s: co2Hist, now, cur: { t1: b1?.temp1_c } });
-      if (r.st !== hotSt) { hotSt = r.st; store.set(KEY_HOT, JSON.stringify(hotSt)); }
-      if (r.action === "off") {
+      const g = hotHeaterGuard(r, b2, now - lastHoldSend >= HOLD_RESEND_MS);
+      if (g.st !== hotSt) { hotSt = g.st; store.set(KEY_HOT, JSON.stringify(hotSt)); }
+      if (g.blocked) notify("hot_on", HOT_MSG_BLOCKED);
+      else if (g.cmd === "off") {
         const m = heatModeOf(b2); if (m && m !== "off") { preHot = m; store.set(KEY_PREHOT, m); } // 복귀 때 ECO 유지
         notify("hot_on", HOT_MSG_OFF); sendHeater("off", true); lastHoldSend = now;
-      } else if (r.action === "auto") { notify("hot_off", HOT_MSG_AUTO); sendHeater(restoreMode(preHot), true); }
-      else if (hotSt?.active && now - lastHoldSend >= HOLD_RESEND_MS) { // 구 3보드 #2는 30초 무수신이면 auto 복귀 → OFF 재발행(firmware2는 off 유지, 재발행 무해)
+      } else if (g.cmd === "auto") { notify("hot_off", HOT_MSG_AUTO); sendHeater(restoreMode(preHot), true); }
+      else if (g.cmd === "hold") { // 구 3보드 #2는 30초 무수신이면 auto 복귀 → OFF 재발행(firmware2는 off 유지, 래치 중엔 hotHeaterGuard가 막음)
         lastHoldSend = now;
         client.publish(T.cmd, JSON.stringify({ target: "b2", heater: "off" }), { qos: 1 });
       }
