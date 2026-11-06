@@ -22,7 +22,7 @@ function note(ac, to, type, t, dur, peak, path) {
 }
 
 // 뽀잉: 사인파(옥타브 위 소량)가 훅 올랐다 살짝 내려오고, 정점 뒤 약한 비브라토. 낮은 음·잡음 없음. p = 피치 배수
-export const BOING = { start: 410, peak: 1080, end: 900, rise: 0.07, dur: 0.26 };
+export const BOING = { start: 328, peak: 864, end: 720, rise: 0.07, dur: 0.26 };
 // 탭마다 고르는 피치. 낮을수록 살짝 길게(0.22~0.28초)
 export const BOING_PITCHES = [0.92, 0.98, 1.04, 1.1, 1.16];
 export function boing(ac, to, t, p = 1) {

@@ -262,8 +262,8 @@ snd.setSoundOn(true); snd.play("boing"); assert.equal(acMade, 1);
 // 돼지 탭 뽀잉: 변형이 3종 이상이고 연속으로 같은 피치가 없으며, 어떤 피치든 음역·길이가 뽀잉 범위 안
 assert.ok(snd.BOING_PITCHES.length >= 3);
 for (const p of snd.BOING_PITCHES) {
-  assert.ok(snd.BOING.start * p >= 350 && snd.BOING.start * p <= 500);
-  assert.ok(snd.BOING.peak * p >= 900 && snd.BOING.peak * p <= 1300);
+  assert.ok(snd.BOING.start * p >= 280 && snd.BOING.start * p <= 400);
+  assert.ok(snd.BOING.peak * p >= 750 && snd.BOING.peak * p <= 1050);
   assert.ok(snd.BOING.end * p < snd.BOING.peak * p);
   assert.ok(snd.BOING.dur / p >= 0.2 && snd.BOING.dur / p <= 0.3);
 }
