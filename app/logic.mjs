@@ -92,7 +92,7 @@ export function capPoints(pts, max = 2000) {
 // ---- 뜨거운 음식물 감지 → 히터 OFF, 안정되면 AUTO ----
 // 시연계획: CO₂ 장면(이스트 컵)이 온도 장면(#2 프로브 60℃ 온수)보다 1~2분 먼저 → CO₂는 최근 5분을 본다.
 // #1은 5초, #2는 2초 주기라 60초 창에 점 12~30개.
-export const HOT_RISE_C = 3, HOT_RISE_MS = 60000;      // temp1_c 또는 temp2_c가 60초 내 +3℃
+export const HOT_RISE_C = 3, HOT_RISE_MS = 60000;      // temp1_c(심부)가 60초 내 +3℃. temp2_c는 히터면 온도라 가열만으로 오르므로 쓰지 않음
 export const HOT_CO2_D = 50, HOT_CO2_MS = 5 * 60000;    // 최근 5분 안 CO₂ |Δ|≥50ppm
 export const HOT_COOLDOWN_MS = 10 * 60000;
 export const HOT_RESTORE_C = 1, HOT_MAX_MS = 30 * 60000;
@@ -105,17 +105,14 @@ function riseFrom(temps, now) {
   const last = tw[tw.length - 1];
   return last.t > lo.t && last.c - lo.c >= HOT_RISE_C ? lo.c : null;
 }
-// series: { t1: [{t, c}], t2: [{t, c}] }, co2s: [{t, ppm}] (co2_status==1인 점만)
+// series: { t1: [{t, c}] }, co2s: [{t, ppm}] (co2_status==1인 점만)
 export function hotFoodHit(series, co2s, now) {
   const cv = co2s.filter((p) => now - p.t <= HOT_CO2_MS).map((p) => p.ppm);
   if (cv.length < 2 || Math.max(...cv) - Math.min(...cv) < HOT_CO2_D) return null;
-  for (const src of ["t1", "t2"]) {
-    const pre = riseFrom(series[src], now);
-    if (pre != null) return { src, preTemp: pre };
-  }
-  return null;
+  const pre = riseFrom(series.t1, now);
+  return pre != null ? { src: "t1", preTemp: pre } : null;
 }
-// st: { active, since, src, preTemp, lastHit }, cur: { t1, t2 } 현재 온도 → { st, action: "off" | "auto" | null }
+// st: { active, since, src, preTemp, lastHit }, cur: { t1 } 현재 온도 → { st, action: "off" | "auto" | null }
 export function hotFoodStep(st, { series, co2s, now, cur }) {
   st = st || { active: false, since: 0, src: null, preTemp: null, lastHit: 0 };
   if (st.active) {
@@ -299,13 +296,30 @@ export function joinAggRaw(agg, raw) {
   return [...head, ...raw];
 }
 // DB events → 알림 항목. 다른 폰에서도 같은 기록이 보이게(id로 중복 제거)
+// firmware2 heater_core.h faultText → 사용자 문구
+export const FAULT_WORD = {
+  no_data: "센서 값을 못 받아 히터를 껐어요",
+  overheat: "과열 차단 중이에요 — 식은 뒤 '히터 끄기'로 해제",
+  ontime_rest: "오래 가열해서 10분 쉬는 중이에요",
+  no_rise: "온도가 오르지 않아 히터를 멈췄어요 — 탐침 확인 후 '히터 끄기'로 해제",
+  hard_off: "45℃가 넘어 히터를 잠시 껐어요",
+  board_mismatch: "본체 보드 설정이 달라 히터가 꺼져 있어요",
+  local_sensor: "히터면 온도 센서 오류로 히터를 껐어요",
+};
+export const LOCAL_CTRL_TEXT = "#1 끊김, 대체 제어 중";
+export const LOCAL_TARGET_C = 40; // firmware2 config.h LOCAL_TARGET_C
+export const faultWord = (b2) => FAULT_WORD[b2?.fault_text] ?? "";
+// 기기 상태 문구: fault가 대체 제어보다 우선
+export const deviceNote = (b2) => faultWord(b2) || (b2?.ctrl_src === "local" ? LOCAL_CTRL_TEXT : "");
+// 지금 실제 제어 목표: 대체 제어 중엔 설정 목표 대신 히터면 40℃
+export const ctrlTargetOf = (b2) => (b2?.ctrl_src === "local" ? LOCAL_TARGET_C : b2?.target_c);
 const DB_EV_KINDS = ["latched", "unlatched", "fault", "b1_lost", "b1_back", "reboot"];
 export function dbEventText(e) {
   const d = e?.detail || {};
   switch (e?.kind) {
-    case "latched": return `과열 차단(래치)${d.fault_text ? ` — ${d.fault_text}` : ""}`;
+    case "latched": return `과열 차단(래치)${d.fault_text ? ` — ${FAULT_WORD[d.fault_text] ?? d.fault_text}` : ""}`;
     case "unlatched": return "과열 차단이 풀렸어요";
-    case "fault": return d.to ? `기기 상태: ${d.to}` : "기기 오류가 해제됐어요";
+    case "fault": return d.to && d.to !== "ok" ? `기기 상태: ${FAULT_WORD[d.to] ?? d.to}` : "기기 오류가 해제됐어요";
     case "b1_lost": return "돼지머리 센서 신호가 끊겼어요";
     case "b1_back": return "돼지머리 센서 신호가 다시 들어와요";
     case "reboot": return "Oink 본체가 다시 시작됐어요";

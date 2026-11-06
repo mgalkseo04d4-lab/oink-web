@@ -98,13 +98,18 @@
     <symbol id="t-bell" viewBox="0 0 24 24"><path d="M6 17 V11 a6 6 0 0 1 12 0 V17 l1.8 1.8 H4.2 z" style="fill:var(--tf)"/><circle cx="12" cy="21" r="2" style="fill:var(--tf)"/><ellipse cx="9.4" cy="9.6" rx="1.2" ry="2.4" fill="#fff" style="opacity:var(--th)" transform="rotate(20 9.4 9.6)"/></symbol>
     <symbol id="t-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.6" style="fill:var(--tf)"/><path d="M3.6 21 a8.4 7.6 0 0 1 16.8 0 z" style="fill:var(--tf)"/><ellipse cx="10.2" cy="6.2" rx="1.6" ry="1" fill="#fff" style="opacity:var(--th)"/><ellipse cx="8.5" cy="16.8" rx="2.2" ry=".9" fill="#fff" style="opacity:var(--th)" transform="rotate(-25 8.5 16.8)"/></symbol>
   </svg>
-  <!-- 시작 화면(목업 1번): 탭하면 앱 -->
+  <!-- 시작 화면(목업 1·2번): 탭할 때마다 다음, 2번 다음 앱 -->
   <div id="splash" class="splash" role="button" tabindex="0" aria-label="시작 화면, 탭해서 계속">
     <div class="sc sc1">
       <div class="pigwrap sp"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><img src="img/pig_happy.webp" alt="" class="sp-pig"></div>
       <p class="sp-title">우리집 미생물</p>
     </div>
-    <p class="sp-hint"><span class="lbl">탭해서 계속</span></p>
+    <!-- 시작 화면 2(목업 2번): 아래에서 고개 내민 돼지, 귀·꼬리는 화면 안 -->
+    <div class="sc sc2" aria-hidden="true">
+      <p class="sp-title pink">우리집 미생물</p>
+      <div class="peek"><span class="pk"><svg class="lines" viewBox="0 0 80 50"><path d="M12 40 l-8 -14 M34 32 l-2 -20 M52 36 l10 -16" stroke="#3D2E2E" stroke-width="5" stroke-linecap="round" fill="none"/></svg><img src="img/pig_base_lg.webp" alt="" width="1000" height="755"></span></div>
+    </div>
+    <p class="sp-hint"><span class="lbl"><span class="dots"><i></i><i></i></span>탭해서 계속</span></p>
   </div>
   <main>
     <p id="netWarn" class="banner warn" hidden>인터넷 연결이 필요해요 — 연결되면 다시 열어 주세요</p>
@@ -133,7 +138,7 @@
       <div id="tab-home" class="tab" role="tabpanel" aria-labelledby="tb-home">
         <article class="hero calm" id="hero">
           <p class="bubble"><svg class="bell" aria-hidden="true"><use href="#i-bell"/></svg><span id="moodText">쿨쿨 자는 중… 💤</span></p>
-          <div class="pigwrap"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><svg class="zz" aria-hidden="true"><use href="#i-zz"/></svg><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="520" height="449"></div>
+          <div class="pigwrap"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><svg class="zz" aria-hidden="true"><use href="#i-zz"/></svg><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="600" height="453"></div>
         </article>
 
         <div class="grid2">
@@ -250,6 +255,7 @@
           <p id="cmdMsg" class="cmd-msg" aria-live="polite"></p>
           <p id="ecoNote" class="banner eco" hidden>🌱 에코 절전 중 — 목표 온도를 30℃로 낮춰 히터 가동을 줄여요</p>
           <p class="banner warn latchNote" hidden>🔒 과열 차단(래치) — 식은 뒤 '히터 끄기'로 해제해요</p>
+          <p id="devNote" class="banner warn" hidden></p>
           <p id="holdNote" class="banner warn" hidden>뜨거운 음식물 감지 — 앱이 열려 있는 동안 OFF 유지 중</p>
           <p class="hint hot"><svg aria-hidden="true"><use href="#i-flame"/></svg><span>뜨거운 음식물이 감지되면 앱이 히터를 끄고, 온도가 안정되면 직전 모드(자동/절전)로 되돌려요</span></p>
           <p class="hint safe"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>기기 안전 규칙(45℃ 차단·50℃ 래치)이 항상 우선 · 강제로 켜는 기능은 없어요</span></p>

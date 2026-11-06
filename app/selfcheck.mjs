@@ -4,7 +4,7 @@ import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odo
   homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
-  db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX } from "./logic.mjs";
+  db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -99,11 +99,11 @@ const tFlat = [{ t: now - 50000, c: 30 }, { t: now, c: 31 }];
 const cJump = [{ t: now - 100000, ppm: 700 }, { t: now, ppm: 760 }];
 const cFlat = [{ t: now - 100000, ppm: 700 }, { t: now, ppm: 720 }];
 const tFall = [{ t: now - 50000, c: 34 }, { t: now, c: 30 }];
-const S = (t1, t2 = []) => ({ t1, t2 });
+const S = (t1) => ({ t1 });
 assert.deepEqual(hotFoodHit(S(tRise), cJump, now), { src: "t1", preTemp: 30 });
-assert.deepEqual(hotFoodHit(S(tFlat, tRise), cJump, now), { src: "t2", preTemp: 30 }); // #2 프로브 온수
+assert.equal(hotFoodHit({ t1: tFlat, t2: tRise }, cJump, now), null); // 히터면(temp2_c) 상승은 감지 안 함
 assert.equal(hotFoodHit(S(tRise), cFlat, now), null);   // CO₂ 변화 부족
-assert.equal(hotFoodHit(S(tFlat, tFlat), cJump, now), null);   // 온도 급상승 아님
+assert.equal(hotFoodHit(S(tFlat), cJump, now), null);   // 온도 급상승 아님
 assert.equal(hotFoodHit(S(tFall), cJump, now), null);   // 하강은 아님
 assert.equal(hotFoodHit(S([{ t: now - 90000, c: 30 }, { t: now, c: 34 }]), cJump, now), null); // 60초 밖
 const cEarly = [{ t: now - 280000, ppm: 700 }, { t: now - 200000, ppm: 780 }, { t: now, ppm: 790 }]; // CO₂가 3~4분 먼저 변함
@@ -113,7 +113,6 @@ let r1 = hotFoodStep(null, { series: S(tRise), co2s: cJump, now, cur: { t1: 33.5
 assert.equal(r1.action, "off");
 assert.equal(hotFoodStep(r1.st, { series: S(tRise), co2s: cJump, now: now + 1000, cur: { t1: 33 } }).action, null);     // 유지
 assert.equal(hotFoodStep(r1.st, { series: S([]), co2s: [], now: now + 60000, cur: { t1: 31 } }).action, "auto");        // 직전+1℃ 이하 복귀
-assert.equal(hotFoodStep(r1.st, { series: S([]), co2s: [], now: now + 60000, cur: { t2: 25, t1: 33 } }).action, null);  // 감지한 센서 기준
 assert.equal(hotFoodStep(r1.st, { series: S([]), co2s: [], now: now + HOT_MAX_MS, cur: { t1: 40 } }).action, "auto");   // 30분
 const back = hotFoodStep(r1.st, { series: S([]), co2s: [], now: now + 60000, cur: { t1: 31 } }).st;
 const sh = (a, d) => a.map((p) => ({ ...p, t: p.t + d }));
@@ -182,4 +181,15 @@ assert.equal(dbEventText({ kind: "fault", detail: { to: null } }), "기기 오�
 const me = mergeEvents([{ ts: now + 500, kind: "alert_on", text: "x" }, de[0]], de);
 assert.deepEqual(me.map((e) => e.dbId ?? "local"), [7, "local", 9]); // 시간순, 같은 dbId 하나
 assert.equal(mergeEvents(Array.from({ length: 60 }, (_, i) => ({ ts: i, text: "a" })), []).length, EVENT_MAX);
+// firmware2 98c9db5: 대체 제어·fault
+assert.equal(deviceNote({ ctrl_src: "local", fault_text: "ok" }), LOCAL_CTRL_TEXT);
+assert.equal(LOCAL_CTRL_TEXT, "#1 끊김, 대체 제어 중");
+assert.equal(deviceNote({ ctrl_src: "core", fault_text: "ok" }), "");
+assert.equal(deviceNote({ ctrl_src: "local", fault_text: "local_sensor" }), "히터면 온도 센서 오류로 히터를 껐어요"); // fault 우선
+assert.equal(faultWord({ fault_text: "ok" }), "");
+assert.equal(deviceNote(undefined), "");
+assert.equal(ctrlTargetOf({ ctrl_src: "local", target_c: 30 }), 40);
+assert.equal(ctrlTargetOf({ ctrl_src: "core", target_c: 30 }), 30);
+assert.equal(dbEventText({ kind: "fault", detail: { to: "local_sensor" } }), "기기 상태: 히터면 온도 센서 오류로 히터를 껐어요");
+assert.equal(dbEventText({ kind: "fault", detail: { to: "ok" } }), "기기 오류가 해제됐어요");
 console.log("selfcheck ok");

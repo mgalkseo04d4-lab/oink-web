@@ -258,13 +258,14 @@ body { background: #FFFDFC; }
 /* 시작 화면 */
 .splash { position: fixed; inset: 0; z-index: 50; background: #fff; cursor: pointer; }
 .splash .sc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; transition: opacity .3s ease; }
-.sp-pig { width: min(64vw, 260px); }
+.sp-pig { display: block; width: 100%; height: auto; }
 .sp-title { margin: 0; font-size: 2rem; font-weight: 800; color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .splash .sc { transition: none; } }
 
 /* ---- 3D 목업(img_src/mockup_3d.png): 이미지 돼지, 입체 꽃, 탭 넘김 시작 화면, 은은한 입체 톤 ---- */
 body { background: #FFFFFF; }
-.pigwrap { position: relative; width: 230px; margin: 0 auto; }
+/* 이미지 캔버스는 몸통(꼬리 제외) 중심 = 가로 중앙(세 표정 공통 크롭). 왼쪽 13.8%는 빈 여백이라 몸통 크기 유지 위해 230→267 */
+.pigwrap { position: relative; width: 267px; margin: 0 auto; }
 .pig { display: block; width: 100%; height: auto; filter: drop-shadow(0 14px 16px rgba(214, 120, 140, .22)); transform-origin: 50% 90%; }
 .pig.calm { animation: breathe 3.2s ease-in-out infinite; }
 .pig.alert { animation: shake .5s ease-in-out infinite; }
@@ -287,16 +288,16 @@ button.primary, .seg button[aria-pressed=true] { background: linear-gradient(180
 .hero .bubble { box-shadow: 0 4px 12px -6px rgba(0, 0, 0, .18); }
 /* 시작 화면 */
 .splash { outline: none; }
-.splash .sc1 .pigwrap { width: min(62vw, 260px); }
+.splash .sc1 .pigwrap { width: min(72vw, 302px); }
 .sp-hint { position: absolute; left: 0; right: 0; bottom: calc(22px + env(safe-area-inset-bottom)); margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: .8rem; font-weight: 700; z-index: 2; }
 .sp-hint .lbl { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 18px; background: rgba(255, 255, 255, .85); }
 
 /* ---- 3D 젤리 스타일(아이콘 스프라이트 #i-*, #t-*): 표현만 ---- */
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .fl { position: absolute; z-index: 1; width: 36px; height: 36px; filter: drop-shadow(0 4px 3px rgba(200, 140, 0, .28)); }
-.fl.f1 { left: -18px; top: 18px; transform: rotate(-14deg); }
+.fl.f1 { left: calc(13.8% - 18px); top: 18px; transform: rotate(-14deg); }
 .fl.f2 { right: -14px; top: -2px; width: 31px; height: 31px; transform: rotate(18deg); }
-.fl.f3 { left: -8px; bottom: 4px; width: 28px; height: 28px; transform: rotate(6deg); }
+.fl.f3 { left: calc(13.8% - 8px); bottom: 4px; width: 28px; height: 28px; transform: rotate(6deg); }
 .hero.calm .fl { animation: twinkle 2.8s ease-in-out infinite; }
 .hero.calm .fl.f2 { animation-delay: .6s; } .hero.calm .fl.f3 { animation-delay: 1.2s; }
 @keyframes twinkle { 50% { translate: 0 -3px; scale: 1.08; } }
@@ -413,3 +414,19 @@ button:active:not(:disabled) { box-shadow: inset 0 3px 6px rgba(160, 80, 100, .2
 /* DB 품질 표시: 플래그 점 = 회색 속빈 원, 카드 배지(경고색 아님) */
 .spark .sp-flag { fill: #fff; stroke: #9E9393; stroke-width: 2; }
 .src.dq { background: #EEE8E8; color: #5E5050; }
+
+/* 시작 화면 2(목업 2번, 스플래시 2번 복원): 몸통 중심 = 가로 중앙(pig_base_lg는 홈 돼지와 같은 크롭), 귀·꼬리는 화면 안, 코 아래부터 화면 밖 */
+.splash .sc2 { opacity: 0; pointer-events: none; justify-content: flex-start; padding-top: 14vh; overflow: hidden; }
+.splash.two .sc1 { opacity: 0; pointer-events: none; }
+.splash.two .sc2 { opacity: 1; }
+.sp-title.pink { color: #D9536E; font-size: 2.3rem; }
+.peek { --pw: min(90vw, 520px); position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--pw) * .755 * .70); } /* 아래쪽은 .sc2 overflow:hidden(화면 끝)이 자름 — 효과선이 잘리지 않게 여기선 자르지 않음 */
+.peek .pk { position: absolute; left: 50%; top: 0; width: var(--pw); transform: translateX(-50%); }
+.peek img { display: block; width: 100%; height: auto; filter: drop-shadow(0 -6px 18px rgba(214, 120, 140, .18)); }
+.peek .lines { position: absolute; left: 9%; top: -6%; width: 16%; transform: translateY(-60%); }
+.sp-hint .dots { display: flex; gap: 6px; }
+.sp-hint .dots i { width: 7px; height: 7px; border-radius: 50%; background: #E8D8DA; }
+.splash:not(.two) .sp-hint .dots i:first-child, .splash.two .sp-hint .dots i:last-child { background: var(--brand); }
+.splash.two .sp-hint { color: #3D2E2E; bottom: calc(min(90vw, 520px) * .755 * .70 + 18px); }
+
+.sp-hint .lbl { color: #3D2E2E; }
