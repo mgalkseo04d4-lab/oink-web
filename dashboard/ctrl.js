@@ -16,7 +16,8 @@
   };
 
   // tele: 최신 telemetry, fresh: 게이트웨이 최근 수신 여부, pending: {want, sentAt} | null
-  function view(target, tele, fresh, pending, now) {
+  function view(target, tele, fresh, pending, now, two = false) {
+    if (two && target === "b3") return { enabled: false, label: "2보드 구성 — 해당 없음", tone: "", current: null, actual: null, result: null, na: true };
     const o = fresh ? SRC[target].obj(tele) : null;
     if (!o) return { enabled: false, label: "끊김", tone: "bad", current: null, actual: null, result: null };
     if (!(SRC[target].field in o)) return { enabled: false, label: "펌웨어 대기", tone: "", current: null, actual: null, result: null };
@@ -37,9 +38,15 @@
     return { text: "전송 중…", tone: "" };
   }
 
-  const payload = (target, val) => (target === "b2" ? { target, heater: val } : { target, led: val });
+  // id가 있으면 firmware2가 oink/gateway/cmd/ack로 결과를 돌려준다
+  const payload = (target, val, id) => ({ ...(id ? { id } : {}), ...(target === "b2" ? { target, heater: val } : { target, led: val }) });
+  const T_MIN = 30, T_MAX = 40, ECO_C = 30;   // firmware2 config.h TARGET_C_MIN/MAX
+  const targetPayload = (c, id) => ({ id, cmd: "set_target", target_c: c });
+  const validTarget = (c) => typeof c === "number" && Number.isFinite(c) && c >= T_MIN && c <= T_MAX;
+  // 절전(ECO) = auto + 목표 30℃ (firmware2에 eco 모드 없음, 목표 하한으로 구현)
+  const isEco = (b2) => !!b2 && b2.mode === "auto" && typeof b2.target_c === "number" && b2.target_c <= ECO_C + 0.5;
 
-  const api = { C, view, judge, payload };
+  const api = { C, view, judge, payload, targetPayload, validTarget, isEco, T_MIN, T_MAX, ECO_C };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.OinkCtrl = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -105,4 +105,19 @@ assert.equal(L.boardStale({ seq: 1 }, 1000, 16000), false);
 assert.equal(L.boardStale({ seq: 1 }, 1000, 16001), true);
 assert.equal(L.boardStale(null, 1000, 2000), true);
 assert.equal(L.boardStale({ seq: 1 }, 0, 2000), true);
+// 2보드(firmware2) 판별·fault 표 (heater_core.h faultText)
+const fw2 = { board_ok: true, rx: { all: 30, bad: 0, wrong_src: 0 }, board2: { temp2_c: null, ctrl_temp_c: 31.2, target_c: 37, latched: false, fault: 0, fault_text: "ok", mode: "auto" } };
+assert.equal(L.isTwoBoard(fw2, null), true);
+assert.equal(L.isTwoBoard({ board2: { temp2_c: 30, mode: "auto" } }, null), false);
+assert.equal(L.isTwoBoard({}, { boards: 2 }), true);
+assert.equal(L.isTwoBoard(null, null), false);
+assert.equal(L.faultText({ target_c: 37, fault: 2, fault_text: "overheat" }), "과열 50℃ 래치"); // 3보드 55℃와 구분
+assert.equal(L.faultText({ target_c: 37, fault: 1, fault_text: "no_data" }), "#1 데이터 없음·끊김 → 히터 OFF");
+assert.equal(L.faultText({ target_c: 37, fault: 5 }), "심부 45℃ 이상 → OFF");
+assert.equal(L.faultText({ target_c: 37, fault: 0, fault_text: "ok" }), "");
+assert.equal(L.faultText({ target_c: 37, fault: 9, fault_text: "?" }), "? (코드 9)");
+// firmware2 rx.all → #1 수신 수
+const st2 = L.makeLink();
+L.addSample(st2, { ...fw2, uptime_ms: 1000, board1: { seq: 1, lost: 0 } }, 1000);
+assert.equal(st2.samples.at(-1).rx[0], 30);
 console.log("linkcheck ok");

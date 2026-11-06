@@ -21,7 +21,8 @@
     const last = st.samples[st.samples.length - 1];
     if (last && up < last.up) st.samples = []; // 게이트웨이 재부팅 → 누적값 리셋
     const prev = st.samples[st.samples.length - 1];
-    const rx = [num(tele.rx && tele.rx.b1), num(tele.rx && tele.rx.b2)];
+    // firmware2는 rx.b1 대신 rx.all(본체가 #1에서 받은 수, 다른 MAC은 wrong_src로 따로 셈)
+    const rx = [num(tele.rx && (tele.rx.b1 ?? ("board_ok" in tele ? tele.rx.all : undefined))), num(tele.rx && tele.rx.b2)];
     const lost = [tele.board1, tele.board2].map((b, i) => {
       const l = num(b && b.lost);
       return l != null ? l : prev ? prev.lost[i] : null; // 보드가 null이면 직전 값 유지
@@ -96,11 +97,20 @@
     rate: "상승률 이상 (가열 5분에 +1℃ 미만)",
   };
   const FAULT_BY_NUM = ["ok", "sensor", "overheat", "timeout", "rate"];
+  // 2보드 firmware2 (oink2_main heater_core.h faultText) — board2에 target_c가 있으면 이 표
+  const FAULT2 = {
+    ok: "", no_data: "#1 데이터 없음·끊김 → 히터 OFF", overheat: "과열 50℃ 래치", ontime_rest: "연속 가열 30분 — 10분 휴지",
+    no_rise: "온도 안 오름 래치", hard_off: "심부 45℃ 이상 → OFF", board_mismatch: "보드 불일치 → 히터 OFF",
+  };
+  const FAULT2_BY_NUM = Object.keys(FAULT2);
+  // 2보드(firmware2) 판별: status boards:2, 또는 telemetry board_ok / board2.target_c (firmware2에만 있음)
+  const isTwoBoard = (tele, diag) => (diag && diag.boards === 2) || !!(tele && ("board_ok" in tele || (tele.board2 && "target_c" in tele.board2)));
   const ERR_BITS = [[0, "온도 센서"], [1, "CO₂ 센서"], [2, "H₂S 예열 중"], [4, "과열"], [5, "공회전"]];
   function faultText(b) {
     if (!b) return "";
-    const f = num(b.fault), t = typeof b.fault_text === "string" ? b.fault_text : f != null ? FAULT_BY_NUM[f] : null;
-    if (t != null) return t in FAULT ? FAULT[t] : `${t} (코드 ${f ?? "?"})`; // 모르는 코드는 원문
+    const two = "target_c" in b, M = two ? FAULT2 : FAULT, BY = two ? FAULT2_BY_NUM : FAULT_BY_NUM;
+    const f = num(b.fault), t = typeof b.fault_text === "string" ? b.fault_text : f != null ? BY[f] : null;
+    if (t != null) return t in M ? M[t] : `${t} (코드 ${f ?? "?"})`; // 모르는 코드는 원문
     if (f != null) return f ? `fault 코드 ${f}` : "";
     return errText(b.err ?? b.reasons); // fault 필드 없는 옛 펌웨어
   }
@@ -125,7 +135,7 @@
 
   const api = { C, G, makeLink, addSample, linkStats, ageTone, rateTone, lossTone, rssiTone,
     makeGw, gwSample, heapLeak, gwAgeTone, fmtUptime,
-    faultText, errText, resetText, wifiReasonText, boardStale, BOARD_STALE_MS };
+    faultText, errText, resetText, wifiReasonText, boardStale, BOARD_STALE_MS, isTwoBoard };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else g.OinkLink = api;
 })(typeof window !== "undefined" ? window : globalThis);

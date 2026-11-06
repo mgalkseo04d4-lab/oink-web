@@ -40,8 +40,10 @@ function render() {
   const fresh = gw.lastSeen && Date.now() - gw.lastSeen < STALE_MS;
   const now = Date.now();
   // 게이트웨이 자체가 끊기면 "끊김"(빨강), 게이트웨이는 살아 있는데 보드만 15초 넘게 안 오면 "수신 끊김"(회색)
+  const two = OinkLink.isTwoBoard(gw.tele, gw.diag); // firmware2: 본체(#2)가 게이트웨이 겸함, #3 없음
   const s1 = fresh && OinkLink.boardStale(gw.tele?.board1, linkSt.lastRxAt[0], now);
-  const s2 = fresh && OinkLink.boardStale(gw.tele?.board2, linkSt.lastRxAt[1], now);
+  // 2보드: board2 = 게이트웨이 자신이라 seq가 없음 → telemetry가 오면 살아 있음
+  const s2 = fresh && !two && OinkLink.boardStale(gw.tele?.board2, linkSt.lastRxAt[1], now);
   const b1 = fresh && !s1 ? gw.tele.board1 : null;
   const b2 = fresh && !s2 ? gw.tele.board2 : null;
   const off1 = s1 ? "수신 끊김" : "끊김", off2 = s2 ? "수신 끊김" : "끊김";
@@ -53,12 +55,22 @@ function render() {
   setCard("c-odor", !b1 ? off1 : b1.odor_index == null ? "센서 안정화 중" : `${fmt(b1.odor_index, 1)}`, !b1 ? t1 : "",
     typeof gw.tele?.pot_v === "number" ? `pot_v ${gw.tele.pot_v.toFixed(2)} V · 시험 범위 0~100` : "시험 범위 0~100");
   setCard("c-t1", !b1 ? off1 : fmt(b1.temp1_c) != null ? `${fmt(b1.temp1_c)} ℃` : "센서 오류", b1 ? "" : t1);
-  setCard("c-t2", !b2 ? off2 : fmt(b2.temp2_c) != null ? `${fmt(b2.temp2_c)} ℃` : "센서 오류", b2 ? "" : t2);
+  const ctrlT = two && b2 && b2.temp2_c == null && "ctrl_temp_c" in b2; // 패드 센서 없음 → 제어 온도(#1 심부)
+  $("t2-label").textContent = ctrlT ? "제어 온도 (#1 심부, 무선)" : "패드 온도";
+  $("t2-label").title = ctrlT ? "board2.ctrl_temp_c · target_c" : "board2.temp2_c";
+  const tgt = fmt(b2?.target_c);
+  if (ctrlT) setCard("c-t2", fmt(b2.ctrl_temp_c) != null ? `${fmt(b2.ctrl_temp_c)} ℃` : "#1 데이터 없음", fmt(b2.ctrl_temp_c) != null ? "" : "bad",
+    tgt != null ? `목표 ${tgt}℃` : "");
+  else setCard("c-t2", !b2 ? off2 : fmt(b2.temp2_c) != null ? `${fmt(b2.temp2_c)} ℃` : "센서 오류", b2 ? "" : t2, "");
   const ft = OinkLink.faultText(b2);
   setCard("c-heat", !b2 ? off2 : b2.heater_on ? "ON" : ft ? "안전 OFF" : "OFF",
     !b2 ? t2 : b2.heater_on ? "warn" : ft ? "bad" : "",
-    b2 ? `${ft || "정상"} · mode ${b2.mode ?? "—"}${b2.fault != null ? ` · fault ${b2.fault}` : ""} · err ${b2.err ?? b2.reasons ?? "—"}` : "");
-  for (const [id, on] of [["bd-co2", FAKE_B1], ["bd-t1", FAKE_B1], ["bd-odor", FAKE_ODOR], ["bd-dco2", FAKE_B1], ["bd-dt1", FAKE_B1]]) $(id).hidden = !on;
+    b2 ? `${ft || "정상"} · mode ${b2.mode ?? "—"}${tgt != null ? ` · 목표 ${tgt}℃` : ""}${b2.fault != null ? ` · fault ${b2.fault}` : ""} · err ${b2.err ?? b2.reasons ?? "—"}` : "");
+  $("bd-eco").hidden = !OinkCtrl.isEco(b2);
+  $("bd-latch").hidden = $("heat-latch").hidden = !(b2 && b2.latched === true);
+  // firmware2에는 가짜값 모드가 없음(README) → 2보드면 시험값 배지 해제
+  for (const [id, on] of [["bd-co2", FAKE_B1], ["bd-t1", FAKE_B1], ["bd-odor", FAKE_ODOR], ["bd-dco2", FAKE_B1], ["bd-dt1", FAKE_B1]]) $(id).hidden = two || !on;
+  if (two && !potFolded && typeof gw.tele?.pot_v !== "number") { potFolded = true; $("potSec").open = false; $("potNote").textContent = "· 펌웨어2: 시험 모드 없음"; }
 
   const online = gw.online && fresh;
   let s = `게이트웨이 ${online ? "온라인" : "오프라인"}`;
@@ -82,10 +94,21 @@ function renderCtrl() {
   const connected = !!(client && client.connected);
   for (const card of document.querySelectorAll(".ctrl")) {
     const target = card.dataset.target;
-    const v = OinkCtrl.view(target, gw.tele, fresh, ctrlPending[target], Date.now());
-    for (const b of card.querySelectorAll("button")) {
-      b.disabled = !(v.enabled && connected);
+    const two = OinkLink.isTwoBoard(gw.tele, gw.diag);
+    const v = OinkCtrl.view(target, gw.tele, fresh, ctrlPending[target], Date.now(), two);
+    card.classList.toggle("na", !!v.na);
+    for (const b of card.querySelectorAll("button[data-val]")) {
+      const noOn = two && target === "b2" && b.dataset.val === "on"; // firmware2: 강제 ON 명령 없음(무시됨)
+      b.disabled = !(v.enabled && connected) || noOn;
+      b.title = noOn ? "펌웨어에 강제 ON 없음" : "";
       b.classList.toggle("sel", v.current === b.dataset.val);
+    }
+    if (target === "b2") {
+      $("tgtRow").hidden = !two;
+      $("tgtApply").disabled = $("tgtEco").disabled = !(v.enabled && connected);
+      $("b2note").textContent = two
+        ? "보드 안전 규칙이 우선합니다. #1 데이터가 없거나 심부 45℃ 이상이면 꺼지고, 50℃면 래치됩니다. 목표 30~40℃(절전 = 30℃)."
+        : "보드 안전 규칙이 우선합니다. 온도를 읽지 못하거나 50℃를 넘으면 ON을 눌러도 꺼집니다.";
     }
     setText(card.querySelector(".state"), v.label, `state ${v.tone}`);
     setText(card.querySelector(".actual"), v.actual?.text || "", `actual ${v.actual?.tone || ""}`);
@@ -98,12 +121,44 @@ for (const card of document.querySelectorAll(".ctrl")) {
     const b = e.target.closest("button[data-val]");
     if (!b || !client || !client.connected) return;
     const target = card.dataset.target;
-    client.publish(TOPIC_CMD, JSON.stringify(OinkCtrl.payload(target, b.dataset.val)), { qos: 1, retain: false });
+    const id = target === "b2" ? ackWait(`히터 ${b.dataset.val.toUpperCase()}`) : undefined;
+    client.publish(TOPIC_CMD, JSON.stringify(OinkCtrl.payload(target, b.dataset.val, id)), { qos: 1, retain: false });
     ctrlPending[target] = { want: b.dataset.val, sentAt: Date.now() };
     renderCtrl();
     setTimeout(renderCtrl, OinkCtrl.C.TIMEOUT_MS[target] + 100); // telemetry가 안 와도 '응답 없음'으로 바뀌게
   });
 }
+
+// ---- firmware2 명령 응답(ack): {"id","ok","msg"} on oink/gateway/cmd/ack ----
+const TOPIC_CMD_ACK = "oink/gateway/cmd/ack";
+const ACK_TIMEOUT_MS = 10000;
+const ackPending = new Map(); // id -> { what, timer }
+let potFolded = false;
+function ackWait(what) {
+  const id = `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const timer = setTimeout(() => {
+    if (ackPending.delete(id)) setText($("tgtRes"), `⚠ ${what}: 기기 응답(ack) 없음 10초`, "result bad");
+  }, ACK_TIMEOUT_MS);
+  ackPending.set(id, { what, timer });
+  setText($("tgtRes"), `${what} 전송 중…`, "result");
+  return id;
+}
+function onCmdAck(msg) {
+  const p = ackPending.get(String(msg.id ?? ""));
+  if (!p) return; // 다른 기기(웹앱 등)가 보낸 명령의 ack
+  clearTimeout(p.timer);
+  ackPending.delete(String(msg.id));
+  setText($("tgtRes"), `${msg.ok ? "✅" : "❌"} ${p.what}: ${String(msg.msg ?? (msg.ok ? "ok" : "거부"))}`, `result ${msg.ok ? "ok" : "bad"}`);
+  if (!msg.ok) { delete ctrlPending.b2; renderCtrl(); } // 거부된 명령은 '전송 중'으로 남기지 않음
+}
+function sendTarget(c) {
+  if (!client || !client.connected) return;
+  if (!OinkCtrl.validTarget(c)) { setText($("tgtRes"), `목표는 ${OinkCtrl.T_MIN}~${OinkCtrl.T_MAX}℃`, "result bad"); return; }
+  const id = ackWait(`목표 ${c}℃`);
+  client.publish(TOPIC_CMD, JSON.stringify(OinkCtrl.targetPayload(c, id)), { qos: 1, retain: false });
+}
+$("tgtApply").addEventListener("click", () => sendTarget(Number($("tgt").value)));
+$("tgtEco").addEventListener("click", () => { $("tgt").value = OinkCtrl.ECO_C; sendTarget(OinkCtrl.ECO_C); });
 
 // ---- 가변저항 시험 그래프 ----
 const lastV = (pts) => (pts.length ? pts[pts.length - 1].v : null);
@@ -241,7 +296,11 @@ for (const key of ["co2", "t1"]) {
 function setText(el, text, tone = "") { el.textContent = text; el.className = tone; }
 
 function renderEsp() {
-  const L = OinkLink, now = Date.now(), t = gw.tele;
+  const L = OinkLink, now = Date.now(), t = gw.tele, two = L.isTwoBoard(t, gw.diag);
+  $("g-label").textContent = two ? "게이트웨이(#2 본체) STA·MQTT" : "게이트웨이(#3) STA·MQTT";
+  $("l-label").textContent = two ? "ESP-NOW 링크 (#1 → #2 본체)" : "ESP-NOW 링크 (#1·#2 → #3)";
+  $("l-0h").textContent = two ? "#1 돼지머리 → #2" : "#1 돼지머리 → #3";
+  $("l-1").classList.toggle("na", two);
   const age = gw.lastSeen ? now - gw.lastSeen : null;
   setText($("g-conn"), `${gw.online ? "온라인" : "오프라인"} · ${age == null ? "수신 없음" : `마지막 수신 ${Math.round(age / 1000)}초 전`}`,
     gw.online ? L.gwAgeTone(age) : "bad");
@@ -263,6 +322,7 @@ function renderEsp() {
   for (const i of [0, 1]) {
     const b = t?.[`board${i + 1}`];
     const cells = $(`l-${i}`).querySelectorAll("td");
+    if (two && i === 1) { setText(cells[0], "2보드 구성 — 해당 없음"); for (const c of [1, 2, 3]) setText(cells[c], ""); continue; }
     const a = typeof b?.age_ms === "number" ? b.age_ms + (age ?? 0)
       : linkSt.lastRxAt[i] ? now - linkSt.lastRxAt[i] : null;
     setText(cells[0], a == null ? "수신 없음" : `${Math.round(a / 1000)}초 전`, L.ageTone(a));
@@ -272,9 +332,11 @@ function renderEsp() {
     const r = typeof b?.rssi === "number" ? b.rssi : null;
     setText(cells[3], r == null ? "—(펌웨어 대기)" : `${r} dBm${r < L.C.RSSI_BAD ? " 안테나·거리 확인" : ""}`, L.rssiTone(r));
   }
-  const bad = t?.rx?.bad;
-  setText($("l-bad"), typeof bad !== "number" ? "오류 패킷 —"
-    : bad > 0 ? `펌웨어 버전 불일치(형식이 다른 패킷 ${bad}개)` : "오류 패킷 0", typeof bad === "number" ? (bad > 0 ? "sub bad" : "sub ok") : "sub");
+  const bad = t?.rx?.bad, ws = t?.rx?.wrong_src;
+  setText($("l-bad"), (typeof bad !== "number" ? "오류 패킷 —"
+    : bad > 0 ? `펌웨어 버전 불일치(형식이 다른 패킷 ${bad}개)` : "오류 패킷 0")
+    + (typeof ws === "number" ? ` · 다른 MAC 패킷 ${ws}개` : "") + (two && t?.board_ok === false ? " · 보드 MAC 불일치(히터 OFF)" : ""),
+    typeof bad === "number" ? (bad > 0 || ws > 0 || t?.board_ok === false ? "sub bad" : "sub ok") : "sub");
 }
 
 // ---- 클라우드 연결 테스트: 다른 기기(다른 네트워크)가 브로커를 거쳐 받고 ack를 돌려주는지 본다 ----
@@ -352,6 +414,7 @@ function onMessage(topic, buf) {
   if (!msg || typeof msg !== "object") return;
   if (topic === TOPIC_TEST) { onTestMessage(msg); return; }
   if (topic === TOPIC_ACK) { onAck(msg); return; }
+  if (topic === TOPIC_CMD_ACK) { onCmdAck(msg); return; }
   if (topic === TOPIC_STATUS) {
     gw.online = !!msg.online;
     gw.ip = msg.ip || gw.ip;
@@ -411,7 +474,7 @@ function oinkConnect(url, username, password, auto = false) {
       $("pass").value = DEFAULT_PASS;
     }
     c.subscribe([TOPIC_STATUS, TOPIC_TELE]);
-    c.subscribe([TOPIC_TEST, TOPIC_ACK], { qos: 1 });
+    c.subscribe([TOPIC_TEST, TOPIC_ACK, TOPIC_CMD_ACK], { qos: 1 });
     testResult("");
     renderTestBtn();
     render();

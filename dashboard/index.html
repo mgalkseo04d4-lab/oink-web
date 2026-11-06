@@ -56,13 +56,13 @@
         <div class="card stat" id="c-co2"><div class="label" title="board1.co2_ppm">CO₂ (분해 활성) <span class="badge" id="bd-co2" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub"></div></div>
         <div class="card stat" id="c-odor"><div class="label" title="board1.odor_index">냄새 지수 (H₂S) <span class="badge" id="bd-odor" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub">시험 범위 0~100</div></div>
         <div class="card stat" id="c-t1"><div class="label" title="board1.temp1_c">심부 온도 <span class="badge" id="bd-t1" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div></div>
-        <div class="card stat" id="c-t2"><div class="label" title="board2.temp2_c">패드 온도</div><div class="value">—</div></div>
-        <div class="card stat" id="c-heat"><div class="label" title="board2.heater_on · fault_text · mode · err">히터</div><div class="value">—</div><div class="sub"></div></div>
+        <div class="card stat" id="c-t2"><div class="label" id="t2-label" title="board2.temp2_c">패드 온도</div><div class="value">—</div><div class="sub"></div></div>
+        <div class="card stat" id="c-heat"><div class="label" title="board2.heater_on · fault_text · mode · target_c · latched · err">히터 <span class="badge eco" id="bd-eco" title="mode auto + target_c ≤ 30.5" hidden>🌱 절전(ECO, 목표 30℃)</span><span class="badge latch" id="bd-latch" title="board2.latched" hidden>과열 래치</span></div><div class="value">—</div><div class="sub"></div><div class="sub" id="heat-latch" hidden>래치 해제 조건: #1 정상 패킷 10개 연속 + 심부 &lt; 목표−2℃ + 래치 뒤 OFF 명령</div></div>
       </div>
       <h2 class="sec">ESP32 상태</h2>
       <div class="grid2">
         <div class="card info">
-          <div class="label">게이트웨이(#3) STA·MQTT</div>
+          <div class="label" id="g-label">게이트웨이(#3) STA·MQTT</div>
           <dl>
             <dt>연결</dt><dd id="g-conn">—</dd>
             <dt>업타임</dt><dd id="g-up">—</dd>
@@ -74,12 +74,12 @@
           </dl>
         </div>
         <div class="card info">
-          <div class="label">ESP-NOW 링크 (#1·#2 → #3)</div>
+          <div class="label" id="l-label">ESP-NOW 링크 (#1·#2 → #3)</div>
           <div class="tbl">
             <table>
               <thead><tr><th>연결</th><th>마지막 수신</th><th>수신율</th><th>손실률</th><th>신호</th></tr></thead>
               <tbody>
-                <tr id="l-0"><th>#1 돼지머리 → #3</th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+                <tr id="l-0"><th id="l-0h">#1 돼지머리 → #3</th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
                 <tr id="l-1"><th>#2 히터 → #3</th><td>—</td><td>—</td><td>—</td><td>—</td></tr>
               </tbody>
             </table>
@@ -93,7 +93,13 @@
           <div class="label">#2 히터 제어</div>
           <div class="btns"><button type="button" data-val="on">ON</button><button type="button" data-val="off">OFF</button><button type="button" data-val="auto">AUTO</button></div>
           <p class="state">—</p><p class="actual"></p><p class="result" role="status"></p>
-          <p class="note">보드 안전 규칙이 우선합니다. 온도를 읽지 못하거나 50℃를 넘으면 ON을 눌러도 꺼집니다.</p>
+          <div class="trow" id="tgtRow" hidden>
+            <input id="tgt" type="number" min="30" max="40" step="0.5" value="37" aria-label="목표 온도(℃, 30~40)" title="set_target 30~40℃">
+            <button type="button" id="tgtApply">목표 적용</button>
+            <button type="button" id="tgtEco" class="ghost">절전 30℃</button>
+          </div>
+          <p class="result" id="tgtRes" role="status"></p>
+          <p class="note" id="b2note">보드 안전 규칙이 우선합니다. 온도를 읽지 못하거나 50℃를 넘으면 ON을 눌러도 꺼집니다.</p>
         </div>
         <div class="card ctrl" id="k-b1" data-target="b1">
           <div class="label">#1 돼지머리 LED</div>
@@ -106,7 +112,8 @@
           <p class="state">—</p><p class="actual"></p><p class="result" role="status"></p>
         </div>
       </div>
-      <h2 class="sec">가변저항 시험 <span class="hint">최근 60초 · 2초 간격</span></h2>
+      <details id="potSec" open>
+      <summary class="sec">가변저항 시험 <span class="hint">최근 60초 · 2초 간격</span> <span class="hint" id="potNote"></span></summary>
       <div class="charts">
         <div class="card chart" id="ch-1">
           <div class="now">
@@ -144,6 +151,7 @@
           </div>
         </div>
       </div>
+      </details>
       <form id="test" class="card test">
         <div class="label">클라우드 연결 테스트 (다른 기기끼리)</div>
         <div class="row">

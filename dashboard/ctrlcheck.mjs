@@ -30,4 +30,15 @@ assert.equal(K.view("b3", { led_on: true }, true, null, T).current, "on");
 // 명령 형식
 assert.deepEqual(K.payload("b2", "auto"), { target: "b2", heater: "auto" });
 assert.deepEqual(K.payload("b3", "off"), { target: "b3", led: "off" });
+// 2보드: #3 해당 없음, ECO = auto + 목표 30℃, set_target 30~40, id 붙은 명령
+v = K.view("b3", { led_on: true }, true, null, T, true);
+assert.equal(v.label, "2보드 구성 — 해당 없음"); assert.equal(v.enabled, false); assert.equal(v.na, true);
+assert.equal(K.isEco({ mode: "auto", target_c: 30 }), true);
+assert.equal(K.isEco({ mode: "auto", target_c: 37 }), false);
+assert.equal(K.isEco({ mode: "off", target_c: 30 }), false);
+assert.equal(K.isEco({ mode: "auto" }), false); // 3보드 펌웨어(target_c 없음)
+assert.equal(K.validTarget(30), true); assert.equal(K.validTarget(40), true);
+assert.equal(K.validTarget(26), false); assert.equal(K.validTarget(NaN), false);
+assert.deepEqual(K.targetPayload(30, "x1"), { id: "x1", cmd: "set_target", target_c: 30 });
+assert.deepEqual(K.payload("b2", "off", "x2"), { id: "x2", target: "b2", heater: "off" });
 console.log("ctrlcheck ok");

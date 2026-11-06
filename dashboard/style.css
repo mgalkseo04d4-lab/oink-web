@@ -117,3 +117,11 @@ button.ghost { background: #fff; border: 1px solid var(--line); color: var(--tex
 .dplot svg .basel { fill: var(--text); font-weight: 600; }
 .dplot svg .cross { stroke: var(--muted); stroke-width: 1; }
 .dplot .tip { position: absolute; top: 6px; padding: 2px 6px; border-radius: 4px; background: #fff; border: 1px solid var(--line); font-size: 12px; color: var(--text); pointer-events: none; white-space: nowrap; }
+/* 2보드(firmware2): ECO·래치 배지, 목표온도 입력, 해당 없음 흐림 */
+.badge.eco { background: #e3f7f4; color: #0f6b5e; border-color: #9ad9cf; }
+.badge.latch { background: #fde8e8; color: #a11d1d; border-color: #f2b1b1; }
+.ctrl .trow { display: flex; gap: 8px; margin-top: 10px; }
+.ctrl .trow input { width: 76px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); font-size: 15px; }
+.ctrl .trow button { flex: 1; font-size: 14px; }
+.na { opacity: .45; }
+details#potSec > summary { cursor: pointer; }
