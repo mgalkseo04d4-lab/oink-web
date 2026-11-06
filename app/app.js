@@ -486,7 +486,10 @@ $("demoToggle").addEventListener("click", () => { setDemo(!demo); render(); });
 function showSound() { $("soundToggle").classList.toggle("on", soundOn()); $("soundToggle").setAttribute("aria-pressed", String(soundOn())); }
 showSound();
 $("soundToggle").addEventListener("click", () => { setSoundOn(!soundOn()); showSound(); });
-$("pig").addEventListener("click", () => play("grunt"));
+// 흔들리는 돼지에서 손가락이 살짝 벗어나도 click이 놓치지 않게 감싸는 칸에 건다. 길게 눌러도 이미지 메뉴 안 뜸
+const pigBox = $("pig").parentElement;
+pigBox.addEventListener("click", () => play("grunt"));
+pigBox.addEventListener("contextmenu", (e) => e.preventDefault());
 document.addEventListener("click", (e) => { if (e.target.closest("button:not([data-size]), [role=button]")) play("pong"); });
 // 시스템 알림은 권한이 이미 허용된 경우에만 덤으로(권한 요청 안 함). 핵심은 앱 안 토스트 + 알림 탭.
 const canNotify = () => typeof Notification !== "undefined";

@@ -259,4 +259,7 @@ const snd = await import("./sound.js");
 snd.play("pong"); assert.equal(acMade, 0);
 arm(); snd.setSoundOn(false); snd.play("grunt"); assert.equal(acMade, 0);
 snd.setSoundOn(true); snd.play("grunt"); assert.equal(acMade, 1);
+// 돼지 탭 변형: 3종 이상이고 연속으로 같은 것이 나오지 않음
+assert.ok(Object.keys(snd.GRUNTS).length >= 3);
+for (let i = 0, p = null; i < 200; i++) { const k = snd.nextGrunt(p); assert.ok(snd.GRUNTS[k]); assert.notEqual(k, p); p = k; }
 console.log("selfcheck ok");
