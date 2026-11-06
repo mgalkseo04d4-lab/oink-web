@@ -33,3 +33,4 @@ CO₂(상태≠1이면 "예열 중"), 냄새 지수(null이면 "센서 안정화
 - ESP32 상태 카드 진단: reset_reason·reconnects·wifi_disc·wifi_disc_reason·mqtt_conns(게이트웨이 status, retained)와 free_heap(telemetry).
 - 기본 계정 oink-web/oink-web이 채워져 있음 — 공개 사이트라 누구나 접속 가능, 비공개가 필요하면 EMQX에서 비번 변경 후 기본값 제거.
 - 로그인 유지는 기기에 비번을 저장함 — 공용 기기에서는 체크 해제. 로그아웃하면 저장된 정보가 지워진다.
+- DB(Supabase) 섹션: `db.js`가 공개(publishable) 키로 PostgREST를 읽기만 한다(10초마다). 수집 상태·data_quality·events·feed_log. 셀프체크 `node cloud-dashboard/dbcheck.mjs`.

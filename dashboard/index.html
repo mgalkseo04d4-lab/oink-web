@@ -10,6 +10,7 @@
   <script src="chart.js" defer></script>
   <script src="demo.js" defer></script>
   <script src="ctrl.js" defer></script>
+  <script src="db.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -152,6 +153,18 @@
         </div>
       </div>
       </details>
+      <h2 class="sec">DB (Supabase) <span class="hint">읽기 전용 · 10초마다 갱신</span></h2>
+      <div class="card db">
+        <div class="label">수집 상태 (EMQX → DB, telemetry)</div>
+        <p id="dbIngest" class="dbstate">—</p>
+        <p id="dbErr" class="err" role="status"></p>
+        <div class="label">데이터 품질 (data_quality 최신 30건)</div>
+        <div class="tbl"><table><thead><tr><th>metric</th><th>flag</th><th>사유</th><th>구간</th><th>행</th></tr></thead><tbody id="dbDq"></tbody></table></div>
+        <div class="label">이벤트 (events 최신 30건)</div>
+        <div class="tbl"><table><thead><tr><th>시각</th><th>kind</th><th>내용</th></tr></thead><tbody id="dbEv"></tbody></table></div>
+        <div class="label">투입 기록 (feed_log 최신 10건)</div>
+        <div class="tbl"><table><thead><tr><th>시각</th><th>양</th><th>음식</th><th>입력</th></tr></thead><tbody id="dbFeed"></tbody></table></div>
+      </div>
       <form id="test" class="card test">
         <div class="label">클라우드 연결 테스트 (다른 기기끼리)</div>
         <div class="row">

@@ -125,3 +125,19 @@ button.ghost { background: #fff; border: 1px solid var(--line); color: var(--tex
 .ctrl .trow button { flex: 1; font-size: 14px; }
 .na { opacity: .45; }
 details#potSec > summary { cursor: pointer; }
+/* DB 섹션 (db.js) */
+.db .label { color: var(--muted); font-size: 13px; margin-top: 12px; }
+.db .label:first-child { margin-top: 0; }
+.dbstate { margin: 6px 0 0; font-size: 15px; font-weight: 600; }
+.dbstate.ok { color: var(--ok); } .dbstate.warn { color: var(--warn); } .dbstate.bad { color: var(--bad); }
+.tbl { overflow-x: auto; margin-top: 6px; }
+.tbl table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th, .tbl td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tbl th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.tbl td.empty { color: var(--faint); }
+.fl { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 12px; line-height: 18px; border: 1px solid; }
+.fl.grey { background: #f1f3f6; color: #4a5260; border-color: #d5dae2; }
+.fl.sky { background: #e6f4fb; color: #0b5d80; border-color: #b6dcef; }
+.fl.orange { background: #fff0e3; color: #a04606; border-color: #f2c39b; }
+.fl.yellow { background: #fff8d6; color: #765400; border-color: #ecd77f; }
+.fl.soft { background: #f7f5ee; color: #5b5442; border-color: #e3dfcf; }

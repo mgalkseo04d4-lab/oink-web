@@ -471,6 +471,7 @@ function oinkConnect(url, username, password, auto = false) {
       else store.del(KEY_LOGIN);
       $("login").hidden = true;
       $("dash").hidden = false;
+      if (window.OinkDb) OinkDb.start(document);
       $("pass").value = DEFAULT_PASS;
     }
     c.subscribe([TOPIC_STATUS, TOPIC_TELE]);
