@@ -75,6 +75,21 @@
       <path d="M12 38 C18 28 26 20 34 14" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".85"/>
       <ellipse cx="27" cy="15" rx="5" ry="2.2" fill="#fff" opacity=".6" transform="rotate(-35 27 15)"/>
     </symbol>
+    <symbol id="i-heat" viewBox="0 0 48 48">
+      <path d="M24 41 C10 32 5 24 5 17 a9.5 9.5 0 0 1 19 -3 a9.5 9.5 0 0 1 19 3 c0 7 -5 15 -19 24 z" fill="url(#g-jelly)" stroke="#D2557A" stroke-width="1.4" stroke-linejoin="round"/>
+      <rect x="21.5" y="13" width="5" height="15" rx="2.5" fill="#fff" opacity=".95"/><circle cx="24" cy="29" r="4.2" fill="url(#g-red)"/>
+      <ellipse cx="13" cy="15" rx="3.6" ry="2" fill="#fff" opacity=".65" transform="rotate(-30 13 15)"/>
+    </symbol>
+    <symbol id="i-power" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="19" fill="url(#g-glass)" stroke="#BFB2B6" stroke-width="1.4"/>
+      <path d="M17 16.5 a10 10 0 1 0 14 0" fill="none" stroke="#8E7E83" stroke-width="3.6" stroke-linecap="round"/><path d="M24 12 V24" stroke="#8E7E83" stroke-width="3.6" stroke-linecap="round"/>
+      <ellipse cx="17" cy="13" rx="5" ry="2.2" fill="#fff" opacity=".8" transform="rotate(-25 17 13)"/>
+    </symbol>
+    <symbol id="i-shield" viewBox="0 0 48 48">
+      <path d="M24 5 L39 10.5 V23 c0 9.5 -6.3 16.5 -15 20 c-8.7 -3.5 -15 -10.5 -15 -20 V10.5 z" fill="url(#g-mint)" stroke="#2A9C93" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M17 24 l5 5 l9 -10" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <ellipse cx="18" cy="13.5" rx="4.5" ry="2" fill="#fff" opacity=".6" transform="rotate(-20 18 13.5)"/>
+    </symbol>
     <symbol id="i-zz" viewBox="0 0 48 48">
       <path d="M6 22 h12 l-12 14 h12 M26 8 h14 l-14 16 h14" fill="none" stroke="url(#g-zz)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
     </symbol>
@@ -208,25 +223,36 @@
           <input id="devName" class="name" maxlength="12" aria-label="이 기기 이름">
           <p id="dbStat" class="muted tiny">데이터 저장: 확인 중…</p>
         </article>
-        <article class="card">
+        <article class="card heat">
           <div class="card-head"><p class="kicker">히터 조절</p><span id="heatBadge" class="badge">—</span></div>
-          <p class="muted">지금 모드: <strong id="heatMode">—</strong></p>
-          <div class="row heat-row">
-            <button type="button" id="autoBtn">자동으로 돌리기</button>
-            <button type="button" id="ecoBtn" class="btn-eco">🌱 에코 절전</button>
-            <button type="button" id="offBtn" class="danger">히터 끄기</button>
+          <p class="heat-sub">명령은 기기가 안전을 먼저 확인한 뒤 적용해요</p>
+          <p class="now-chip"><span class="lbl">지금</span><strong id="heatMode">—</strong><span id="heatTemps"></span></p>
+          <div class="modes" role="radiogroup" aria-label="히터 모드">
+            <button type="button" id="autoBtn" class="mode auto" role="radio" aria-checked="false">
+              <svg class="m-ic" aria-hidden="true"><use href="#i-heat"/></svg>
+              <span class="m-txt"><b>자동</b><small>목표 37℃로 분해를 도와요</small></span>
+              <span class="m-val">37℃</span>
+              <svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span>
+            </button>
+            <button type="button" id="ecoBtn" class="mode eco" role="radio" aria-checked="false">
+              <svg class="m-ic" aria-hidden="true"><use href="#i-leaf"/></svg>
+              <span class="m-txt"><b>에코 절전<em class="tag">외출·밤</em></b><small>목표 30℃로 낮춰 가동을 줄여요</small></span>
+              <span class="m-val">30℃</span>
+              <svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span>
+            </button>
+            <button type="button" id="offBtn" class="mode off" role="radio" aria-checked="false">
+              <svg class="m-ic" aria-hidden="true"><use href="#i-power"/></svg>
+              <span class="m-txt"><b><i class="dot" aria-hidden="true"></i>히터 끄기</b><small>청소·점검용 완전 정지</small></span>
+              <span class="m-val">OFF</span>
+              <svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span>
+            </button>
           </div>
-          <p id="cmdMsg" class="muted">명령은 기기가 안전을 먼저 확인한 뒤 적용해요. 히터를 강제로 켜는 기능은 없어요.</p>
+          <p id="cmdMsg" class="cmd-msg" aria-live="polite"></p>
           <p id="ecoNote" class="banner eco" hidden>🌱 에코 절전 중 — 목표 온도를 30℃로 낮춰 히터 가동을 줄여요</p>
           <p class="banner warn latchNote" hidden>🔒 과열 차단(래치) — 식은 뒤 '히터 끄기'로 해제해요</p>
           <p id="holdNote" class="banner warn" hidden>뜨거운 음식물 감지 — 앱이 열려 있는 동안 OFF 유지 중</p>
-          <p class="muted tiny">
-            · <strong>자동</strong>: 목표 37℃로 분해를 도와요.<br>
-            · <strong>에코 절전</strong>: 목표 온도를 30℃로 낮춰 히터 가동을 줄여요(외출·밤).<br>
-            · <strong>히터 끄기</strong>: 청소·점검용 완전 정지.<br>
-            · 뜨거운 음식물이 감지되면 앱이 히터를 끄고, 온도가 안정되면 직전 모드(자동/절전)로 되돌려요.<br>
-            · 기기 안전 규칙(45℃ 차단·50℃ 래치)이 항상 우선이에요.
-          </p>
+          <p class="hint hot"><svg aria-hidden="true"><use href="#i-flame"/></svg><span>뜨거운 음식물이 감지되면 앱이 히터를 끄고, 온도가 안정되면 직전 모드(자동/절전)로 되돌려요</span></p>
+          <p class="hint safe"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>기기 안전 규칙(45℃ 차단·50℃ 래치)이 항상 우선 · 강제로 켜는 기능은 없어요</span></p>
         </article>
         <article class="card">
           <p class="kicker">예측 설정</p>

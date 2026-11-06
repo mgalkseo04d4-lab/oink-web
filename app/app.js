@@ -351,7 +351,9 @@ function render() {
   $("ecoCard").classList.toggle("on", hm === "eco");
   $("ecoSub").textContent = !hm ? "기기와 연결되면 바꿀 수 있어요" : busy ? "기기에 보내는 중…"
     : hm === "eco" ? "목표 온도 30℃로 낮춰 히터 가동을 줄여요" : "목표 37℃로 분해를 도와요";
-  for (const [id, m] of [["autoBtn", "auto"], ["ecoBtn", "eco"], ["offBtn", "off"]]) $(id).classList.toggle("cur", hm === m);
+  const ct = b2?.ctrl_temp_c ?? b1?.temp1_c;
+  $("heatTemps").textContent = !b2 ? "" : [Number.isFinite(ct) ? `${ct.toFixed(1)}℃` + (Number.isFinite(b2.target_c) ? ` → ${b2.target_c}℃` : "") : "",
+    b2.heater_on ? "히터 켜짐" : "히터 꺼짐"].filter(Boolean).join(" · ");
   if (pendingHeat) {
     const who = pendingHeat.auto ? "앱 자동 제어 · " : "";
     const name = MODE_NAME[pendingHeat.want];
@@ -360,6 +362,11 @@ function render() {
       $("cmdMsg").textContent = pendingHeat.acks ? `⚠️ ${who}기기는 받았지만 아직 반영되지 않았어요` : `⚠️ ${who}기기 응답 없음 — 명령이 반영되지 않았어요`;
       pendingHeat = null;
     } else $("cmdMsg").textContent = pendingHeat.acks ? `📨 ${who}기기가 받았어요 · 반영 중…` : `📤 ${who}${name} 보내는 중…`;
+  }
+  for (const [id, m] of [["autoBtn", "auto"], ["ecoBtn", "eco"], ["offBtn", "off"]]) { // 표시만: 현재 모드·대기 중
+    $(id).classList.toggle("cur", hm === m);
+    $(id).setAttribute("aria-checked", String(hm === m));
+    $(id).classList.toggle("wait", pendingHeat?.want === m);
   }
 
   // DB 품질 배지(최신 DB 행 flags, 2분 이내일 때만) + 저장 상태
