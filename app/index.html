@@ -17,17 +17,74 @@
   <script type="module" src="app.js"></script>
 </head>
 <body>
-  <!-- 시작 화면(목업 1·2번): 탭할 때마다 다음 화면 → 앱 -->
+  <!-- 3D 젤리 아이콘 스프라이트(그라디언트 하이라이트·음영). display:none이면 그라디언트가 깨져서 0 크기로 숨김 -->
+  <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <radialGradient id="g-petal" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#FFF6C2"/><stop offset=".45" stop-color="#FFD84A"/><stop offset="1" stop-color="#F2B100"/></radialGradient>
+      <radialGradient id="g-core" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#FFD29A"/><stop offset=".5" stop-color="#FFA23D"/><stop offset="1" stop-color="#E07B00"/></radialGradient>
+      <radialGradient id="g-cloud" cx="35%" cy="25%" r="85%"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#EEF5FD"/><stop offset="1" stop-color="#C9DDF3"/></radialGradient>
+      <linearGradient id="g-glass" x1="0" x2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#F3EEF0"/><stop offset="1" stop-color="#D9CDD1"/></linearGradient>
+      <radialGradient id="g-red" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#FFB0B0"/><stop offset=".5" stop-color="#F04A5E"/><stop offset="1" stop-color="#B91C36"/></radialGradient>
+      <linearGradient id="g-jelly" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFC6D2"/><stop offset=".55" stop-color="#FF8FA3"/><stop offset="1" stop-color="#E5668A"/></linearGradient>
+      <radialGradient id="g-mint" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#B8F5EF"/><stop offset=".55" stop-color="#4ECDC4"/><stop offset="1" stop-color="#2A9C93"/></radialGradient>
+      <radialGradient id="g-gold" cx="35%" cy="28%" r="80%"><stop offset="0" stop-color="#FFF3B5"/><stop offset=".5" stop-color="#FFD166"/><stop offset="1" stop-color="#E3A200"/></radialGradient>
+      <radialGradient id="g-flame" cx="45%" cy="70%" r="80%"><stop offset="0" stop-color="#FFF1A6"/><stop offset=".45" stop-color="#FF9A3D"/><stop offset="1" stop-color="#E5394F"/></radialGradient>
+      <linearGradient id="g-zz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E3E0F5"/><stop offset="1" stop-color="#9F9ACB"/></linearGradient>
+      <linearGradient id="g-tab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB8C7"/><stop offset=".6" stop-color="#FF7F98"/><stop offset="1" stop-color="#E35A7E"/></linearGradient>
+    </defs>
+    <symbol id="i-flower" viewBox="0 0 48 48">
+      <g fill="url(#g-petal)"><circle cx="24" cy="11" r="9"/><circle cx="36.4" cy="20" r="9"/><circle cx="31.6" cy="34.6" r="9"/><circle cx="16.4" cy="34.6" r="9"/><circle cx="11.6" cy="20" r="9"/></g>
+      <g fill="#fff" opacity=".7"><ellipse cx="21.5" cy="8" rx="3" ry="2"/><ellipse cx="34" cy="16.8" rx="3" ry="2"/><ellipse cx="9.3" cy="16.8" rx="3" ry="2"/></g>
+      <circle cx="24" cy="24" r="8" fill="url(#g-core)"/><ellipse cx="21.6" cy="21.4" rx="2.6" ry="1.8" fill="#fff" opacity=".75"/>
+    </symbol>
+    <symbol id="i-cloud" viewBox="0 0 48 48">
+      <path d="M13 38 h22 a9 9 0 0 0 1-17.9 A12 12 0 0 0 13.4 17 A10.5 10.5 0 0 0 13 38 z" fill="url(#g-cloud)" stroke="#A9C3E0" stroke-width="1.6"/>
+      <ellipse cx="20" cy="20.5" rx="5" ry="2.6" fill="#fff" opacity=".9"/>
+    </symbol>
+    <symbol id="i-thermo" viewBox="0 0 48 48">
+      <rect x="18" y="4" width="12" height="30" rx="6" fill="url(#g-glass)" stroke="#CDBFC4" stroke-width="1.4"/>
+      <rect x="21.5" y="14" width="5" height="20" rx="2.5" fill="#E5394F"/>
+      <circle cx="24" cy="36" r="9" fill="url(#g-red)"/><ellipse cx="21" cy="33" rx="3" ry="2" fill="#fff" opacity=".7"/>
+      <rect x="20" y="7" width="2" height="9" rx="1" fill="#fff" opacity=".85"/>
+    </symbol>
+    <symbol id="i-bars" viewBox="0 0 48 48">
+      <g fill="url(#g-jelly)"><rect x="6" y="24" width="10" height="18" rx="5"/><rect x="19" y="10" width="10" height="32" rx="5"/><rect x="32" y="17" width="10" height="25" rx="5"/></g>
+      <g fill="#fff" opacity=".7"><rect x="8.5" y="26.5" width="2.6" height="7" rx="1.3"/><rect x="21.5" y="12.5" width="2.6" height="9" rx="1.3"/><rect x="34.5" y="19.5" width="2.6" height="8" rx="1.3"/></g>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 48 48">
+      <circle cx="24" cy="25" r="18" fill="url(#g-mint)"/><circle cx="24" cy="25" r="12.5" fill="#FFFDFB"/>
+      <path d="M24 17.5 V25 l5 3" fill="none" stroke="#5E4A4A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="24" cy="25" r="1.8" fill="#5E4A4A"/><ellipse cx="16.5" cy="14" rx="4" ry="2.2" fill="#fff" opacity=".7" transform="rotate(-30 16.5 14)"/>
+    </symbol>
+    <symbol id="i-bell" viewBox="0 0 48 48">
+      <path d="M12 34 V22 a12 12 0 0 1 24 0 V34 l3.5 3.5 H8.5 z" fill="url(#g-gold)" stroke="#C98F00" stroke-width="1.4" stroke-linejoin="round"/>
+      <circle cx="24" cy="41" r="4" fill="url(#g-core)"/><circle cx="24" cy="8.5" r="2.6" fill="url(#g-gold)"/>
+      <ellipse cx="18.5" cy="19" rx="2.6" ry="5" fill="#fff" opacity=".7" transform="rotate(20 18.5 19)"/>
+    </symbol>
+    <symbol id="i-flame" viewBox="0 0 48 48">
+      <path d="M24 4 C29 13 38 18 38 29 a14 14 0 0 1 -28 0 c0-6 3-10 6-13 c0 5 2 8 5 9 c-2-7 0-15 3-21 z" fill="url(#g-flame)"/>
+      <path d="M24 26 c3 4 6 6 6 10 a6 6 0 0 1 -12 0 c0-4 3-6 6-10 z" fill="#FFF4C4" opacity=".9"/>
+      <ellipse cx="17" cy="27" rx="2" ry="4" fill="#fff" opacity=".5"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="19" fill="url(#g-mint)"/><path d="M15 24.5 l6 6 l12-13" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <ellipse cx="17" cy="13.5" rx="5" ry="2.4" fill="#fff" opacity=".6" transform="rotate(-25 17 13.5)"/>
+    </symbol>
+    <symbol id="i-zz" viewBox="0 0 48 48">
+      <path d="M6 22 h12 l-12 14 h12 M26 8 h14 l-14 16 h14" fill="none" stroke="url(#g-zz)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="t-home" viewBox="0 0 24 24"><path d="M3.2 11.2 L12 3.6 L20.8 11.2 a1.4 1.4 0 0 1 -.9 2.4 H19 V19 a2 2 0 0 1 -2 2 H7 a2 2 0 0 1 -2 -2 V13.6 H4.1 a1.4 1.4 0 0 1 -.9 -2.4 z" style="fill:var(--tf)"/><rect x="10" y="14.5" width="4" height="6.5" rx="1.5" fill="#fff" style="opacity:var(--tdoor)"/><ellipse cx="9" cy="9.6" rx="2.6" ry="1.1" fill="#fff" style="opacity:var(--th)" transform="rotate(-38 9 9.6)"/></symbol>
+    <symbol id="t-bars" viewBox="0 0 24 24"><g style="fill:var(--tf)"><rect x="3" y="12" width="5" height="9" rx="2.5"/><rect x="9.5" y="5" width="5" height="16" rx="2.5"/><rect x="16" y="9" width="5" height="12" rx="2.5"/></g><g fill="#fff" style="opacity:var(--th)"><rect x="4.2" y="13.3" width="1.3" height="3.5" rx=".65"/><rect x="10.7" y="6.3" width="1.3" height="4.5" rx=".65"/><rect x="17.2" y="10.3" width="1.3" height="4" rx=".65"/></g></symbol>
+    <symbol id="t-bell" viewBox="0 0 24 24"><path d="M6 17 V11 a6 6 0 0 1 12 0 V17 l1.8 1.8 H4.2 z" style="fill:var(--tf)"/><circle cx="12" cy="21" r="2" style="fill:var(--tf)"/><ellipse cx="9.4" cy="9.6" rx="1.2" ry="2.4" fill="#fff" style="opacity:var(--th)" transform="rotate(20 9.4 9.6)"/></symbol>
+    <symbol id="t-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.6" style="fill:var(--tf)"/><path d="M3.6 21 a8.4 7.6 0 0 1 16.8 0 z" style="fill:var(--tf)"/><ellipse cx="10.2" cy="6.2" rx="1.6" ry="1" fill="#fff" style="opacity:var(--th)"/><ellipse cx="8.5" cy="16.8" rx="2.2" ry=".9" fill="#fff" style="opacity:var(--th)" transform="rotate(-25 8.5 16.8)"/></symbol>
+  </svg>
+  <!-- 시작 화면(목업 1번): 탭하면 앱 -->
   <div id="splash" class="splash" role="button" tabindex="0" aria-label="시작 화면, 탭해서 계속">
     <div class="sc sc1">
-      <div class="pigwrap sp"><span class="fl f1"></span><span class="fl f2"></span><span class="fl f3"></span><img src="img/pig_happy.webp" alt="" class="sp-pig"></div>
+      <div class="pigwrap sp"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><img src="img/pig_happy.webp" alt="" class="sp-pig"></div>
       <p class="sp-title">우리집 미생물</p>
     </div>
-    <div class="sc sc2">
-      <p class="sp-title pink">우리집 미생물</p>
-      <div class="peek"><span class="pk"><svg class="lines" viewBox="0 0 80 50" aria-hidden="true"><path d="M12 40 l-8 -14 M34 32 l-2 -20 M52 36 l10 -16" stroke="#3D2E2E" stroke-width="5" stroke-linecap="round"/></svg><img src="img/pig_base_lg.webp" alt="" width="1000" height="864"></span></div>
-    </div>
-    <p class="sp-hint"><span class="lbl"><span class="dots"><i></i><i></i></span>탭해서 계속</span></p>
+    <p class="sp-hint"><span class="lbl">탭해서 계속</span></p>
   </div>
   <main>
     <p id="netWarn" class="banner warn" hidden>인터넷 연결이 필요해요 — 연결되면 다시 열어 주세요</p>
@@ -55,15 +112,15 @@
       <!-- 홈(목업 3·4번) -->
       <div id="tab-home" class="tab" role="tabpanel" aria-labelledby="tb-home">
         <article class="hero calm" id="hero">
-          <p class="bubble"><svg viewBox="0 0 24 24" class="bell" aria-hidden="true"><path d="M6 16 V11 a6 6 0 0 1 12 0 V16 L19.5 18 H4.5 Z" fill="#FFD166" stroke="#3D2E2E" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20.5 a2 2 0 0 0 4 0" fill="none" stroke="#3D2E2E" stroke-width="1.8" stroke-linecap="round"/></svg><span id="moodText">쿨쿨 자는 중… 💤</span></p>
-          <div class="pigwrap"><span class="fl f1"></span><span class="fl f2"></span><span class="fl f3"></span><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="520" height="449"></div>
+          <p class="bubble"><svg class="bell" aria-hidden="true"><use href="#i-bell"/></svg><span id="moodText">쿨쿨 자는 중… 💤</span></p>
+          <div class="pigwrap"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><svg class="zz" aria-hidden="true"><use href="#i-zz"/></svg><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="520" height="449"></div>
         </article>
 
         <div class="grid2">
-          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18 h10 a4 4 0 0 0 0 -8 a5.5 5.5 0 0 0 -10.5 -1.5 A4.5 4.5 0 0 0 7 18 z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
-          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4 a2 2 0 0 1 4 0 v9.5 a4 4 0 1 1 -4 0 z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="17" r="2" fill="#E5394F"/><path d="M12 15 V8" stroke="#E5394F" stroke-width="2" stroke-linecap="round"/></svg>내부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
-          <article class="card stat tap" id="cAct" role="button" tabindex="0" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20 V14 M10 20 V9 M15 20 V12 M20 20 V5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
-          <article class="card stat" id="cFeed"><p class="kicker"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5 V12 l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>최근 투입</p><p class="big"><span id="vFeed">—</span></p><p id="nFeed" class="num"></p><p class="num tiny">투입 기록</p></article>
+          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
+          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
+          <article class="card stat tap" id="cAct" role="button" tabindex="0" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-bars"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
+          <article class="card stat" id="cFeed"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>최근 투입</p><p class="big"><span id="vFeed">—</span></p><p id="nFeed" class="num"></p><p class="num tiny">투입 기록</p></article>
         </div>
         <div class="row" id="homeFeed"><button type="button" data-size="중" class="primary wide">🍽 음식물 넣었어요</button></div>
         <p id="homeFeedMsg" class="muted center"></p>
@@ -167,13 +224,13 @@
 
       <nav class="tabbar" role="tablist" aria-label="화면">
         <button type="button" role="tab" id="tb-home" aria-controls="tab-home" aria-selected="true" data-tab="home">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 L12 3 L21 11 M5 9.5 V21 H19 V9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg><span>홈</span></button>
+          <svg aria-hidden="true"><use href="#t-home"/></svg><span>홈</span></button>
         <button type="button" role="tab" id="tb-log" aria-controls="tab-log" aria-selected="false" data-tab="log">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20 V13 M10 20 V8 M15 20 V11 M20 20 V4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>분석</span></button>
+          <svg aria-hidden="true"><use href="#t-bars"/></svg><span>분석</span></button>
         <button type="button" role="tab" id="tb-alert" aria-controls="tab-alert" aria-selected="false" data-tab="alert">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 17 V11 a6 6 0 0 1 12 0 V17 L20 19 H4 Z M10 21 a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>알림</span><b id="evBadge" class="count" hidden>0</b></button>
+          <svg aria-hidden="true"><use href="#t-bell"/></svg><span>알림</span><b id="evBadge" class="count" hidden>0</b></button>
         <button type="button" role="tab" id="tb-me" aria-controls="tab-me" aria-selected="false" data-tab="me">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21 a8 7 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>내 정보</span></button>
+          <svg aria-hidden="true"><use href="#t-user"/></svg><span>내 정보</span></button>
       </nav>
     </section>
   </main>

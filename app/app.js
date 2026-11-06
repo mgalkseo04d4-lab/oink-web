@@ -344,7 +344,10 @@ const canNotify = () => typeof Notification !== "undefined";
 function notify(kind, text) {
   events = addEvents(events, [{ ts: Date.now(), kind, text }]); store.set(KEY_EV, JSON.stringify(events));
   const t = $("toast");
-  t.textContent = text; t.className = `toast ${kind === "hot_off" ? "ok" : ""}`; t.hidden = false;
+  const ic = kind === "hot_on" ? "i-flame" : kind === "hot_off" ? "i-check" : "";
+  t.innerHTML = ic ? `<svg class="t-ic" aria-hidden="true"><use href="#${ic}"/></svg>` : "";
+  t.append(Object.assign(document.createElement("span"), { textContent: text }));
+  t.className = `toast ${kind === "hot_off" ? "ok" : ""}`; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 15000); // 무대에서 읽을 시간
   if (canNotify() && Notification.permission === "granted") {
     const opt = { body: text, icon: "icons/icon-192.png", tag: `oink-${kind}` };
@@ -488,10 +491,10 @@ try {
   if (saved?.username) oinkConnect(BROKER, saved.username, saved.password, true);
 } catch { store.del(KEY_LOGIN); }
 setInterval(() => { if (!$("app").hidden) render(); }, 2000);
-// 시작 화면(시연용, 로그인 유지여도 매번): 탭할 때마다 1 → 2 → 앱. 자동 넘김 없음
+// 시작 화면(시연용, 로그인 유지여도 매번): 탭하면 앱. 자동 넘김 없음
 {
   const sp = $("splash");
-  const next = () => { if (sp.classList.contains("two")) sp.remove(); else sp.classList.add("two"); };
+  const next = () => sp.remove();
   sp.addEventListener("click", next);
   sp.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); next(); } });
   sp.focus();
