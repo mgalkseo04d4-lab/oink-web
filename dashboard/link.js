@@ -110,7 +110,7 @@
   const FAULT2_BY_NUM = Object.keys(FAULT2);
   // 2보드(firmware2) 판별: status boards:2, 또는 telemetry board_ok / board2.target_c (firmware2에만 있음)
   const isTwoBoard = (tele, diag) => (diag && diag.boards === 2) || !!(tele && ("board_ok" in tele || (tele.board2 && "target_c" in tele.board2)));
-  const ERR_BITS = [[0, "온도 센서"], [1, "CO₂ 센서"], [2, "H₂S 예열 중"], [4, "과열"], [5, "공회전"]];
+  const ERR_BITS = [[0, "온도 센서"], [1, "CO₂ 센서"], [2, "NH₃ 예열 중"], [4, "과열"], [5, "공회전"]];
   function faultText(b) {
     if (!b) return "";
     const two = "target_c" in b, M = two ? FAULT2 : FAULT, BY = two ? FAULT2_BY_NUM : FAULT_BY_NUM;

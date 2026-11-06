@@ -53,11 +53,11 @@ function render() {
     b1 ? `co2_status ${b1.co2_status ?? "—"}${b1.err ? ` · ${OinkLink.errText(b1.err)}` : ""}` : "");
   // 시험 중 odor_index 0~100이라 냄새 경고는 띄우지 않음
   setCard("c-odor", !b1 ? off1 : b1.odor_index == null ? "센서 안정화 중" : `${fmt(b1.odor_index, 1)}`, !b1 ? t1 : "",
-    typeof gw.tele?.pot_v === "number" ? `pot_v ${gw.tele.pot_v.toFixed(2)} V · 시험 범위 0~100` : "시험 범위 0~100");
+    typeof gw.tele?.pot_v === "number" ? `pot_v ${gw.tele.pot_v.toFixed(2)} V · 시험 범위 0~100` : "R0/Rs 비율 · 기준 1.3, 2"); // pot_v = 옛 펌웨어 POT_TEST(0~100)
   setCard("c-t1", !b1 ? off1 : fmt(b1.temp1_c) != null ? `${fmt(b1.temp1_c)} ℃` : "센서 오류", b1 ? "" : t1);
   const src = OinkLink.ctrlSrc(b2); // 98c9db5: "core"(#1 심부) / "local"(#1 끊김 → 히터면 #2 대체, 목표 40℃)
   const ctrlT = !src && two && b2 && b2.temp2_c == null && "ctrl_temp_c" in b2; // 11/05 firmware2: 히터면 센서 없음 → 제어 온도(#1 심부)
-  $("t2-label").textContent = src ? "히터면 온도 (#2 DS18B20)" : ctrlT ? "제어 온도 (#1 심부, 무선)" : "패드 온도";
+  $("t2-label").textContent = src ? "히터면 온도 (#2 DS18B20)" : ctrlT ? "제어 온도 (#1 심부, 무선)" : "히터면 온도";
   $("t2-label").title = src ? "board2.temp2_c · ctrl_src · ctrl_temp_c · target_c" : ctrlT ? "board2.ctrl_temp_c · target_c" : "board2.temp2_c";
   const tgt = fmt(b2?.target_c);
   const effTgt = src === "local" ? OinkLink.LOCAL_TARGET_C : tgt; // 대체 제어 중엔 펌웨어 고정 목표 40℃
@@ -169,7 +169,7 @@ $("tgtEco").addEventListener("click", () => { $("tgt").value = OinkCtrl.ECO_C; s
 const lastV = (pts) => (pts.length ? pts[pts.length - 1].v : null);
 const CHARTS = {
   "s-gas": { key: "gas", min: 0, max: 3.3, color: "#3987e5", unit: "V", d: 2, stale: "b1" },
-  "s-odor": { key: "odor", min: 0, max: 100, color: "#d95926", unit: "", d: 1, stale: "b1", h: 70 },
+  "s-odor": { key: "odor", min: 0, max: 5, color: "#d95926", unit: "", d: 1, stale: "b1", h: 70 },
   "s-temp": { key: "temp", min: 20, max: 80, color: "#3987e5", unit: "℃", d: 1, stale: "b2", band: "heat" },
   "s-pot": { key: "pot", min: 0, max: 3.3, color: "#3987e5", unit: "V", d: 2, stale: "pot" },
 };

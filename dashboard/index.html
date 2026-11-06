@@ -55,9 +55,9 @@
       </section>
       <div class="grid">
         <div class="card stat" id="c-co2"><div class="label" title="board1.co2_ppm">CO₂ (분해 활성) <span class="badge" id="bd-co2" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub"></div></div>
-        <div class="card stat" id="c-odor"><div class="label" title="board1.odor_index">냄새 지수 (H₂S) <span class="badge" id="bd-odor" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub">시험 범위 0~100</div></div>
+        <div class="card stat" id="c-odor"><div class="label" title="board1.odor_index">냄새 지수 (NH₃) <span class="badge" id="bd-odor" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub">R0/Rs 비율 · 기준 1.3, 2</div></div>
         <div class="card stat" id="c-t1"><div class="label" title="board1.temp1_c">심부 온도 <span class="badge" id="bd-t1" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div></div>
-        <div class="card stat" id="c-t2"><div class="label" id="t2-label" title="board2.temp2_c">패드 온도</div><div class="value">—</div><div class="sub"></div></div>
+        <div class="card stat" id="c-t2"><div class="label" id="t2-label" title="board2.temp2_c">히터면 온도</div><div class="value">—</div><div class="sub"></div></div>
         <div class="card stat" id="c-heat"><div class="label" title="board2.heater_on · fault_text · mode · target_c · latched · err">히터 <span class="badge eco" id="bd-eco" title="mode auto + target_c ≤ 30.5" hidden>🌱 절전(ECO, 목표 30℃)</span><span class="badge local" id="bd-local" title="board2.ctrl_src = local" hidden>#1 끊김, 대체 제어 중</span><span class="badge latch" id="bd-latch" title="board2.latched" hidden>과열 래치</span></div><div class="value">—</div><div class="sub"></div><div class="sub" id="heat-latch" hidden>래치 해제 조건: 래치 뒤 OFF 명령 + 히터면 센서 정상·&lt; 38℃ + (심부 제어 중이면 #1 정상 10개 연속 + 심부 &lt; 목표−2℃)</div></div>
       </div>
       <h2 class="sec">ESP32 상태</h2>
@@ -126,19 +126,19 @@
           </div>
           <div class="plots">
             <div class="plot"><svg id="s-gas" preserveAspectRatio="none" role="img" aria-label="#1 D0 전압 최근 60초"></svg><div class="axis">0 ~ 3.3 V</div><div class="tip" hidden></div></div>
-            <div class="plot"><svg id="s-odor" class="odor" preserveAspectRatio="none" role="img" aria-label="#1 냄새 지수 최근 60초"></svg><div class="axis">냄새 지수 0 ~ 100</div><div class="tip" hidden></div></div>
+            <div class="plot"><svg id="s-odor" class="odor" preserveAspectRatio="none" role="img" aria-label="#1 냄새 지수 최근 60초"></svg><div class="axis">냄새 지수 0 ~ 5 (R0/Rs 비율)</div><div class="tip" hidden></div></div>
           </div>
         </div>
         <div class="card chart" id="ch-2">
           <div class="now">
-            <div class="label">#2 히터 · 패드 온도</div>
+            <div class="label">#2 히터 · 히터면 온도</div>
             <div class="big" id="v-temp">—</div>
             <div class="label">히터</div>
             <div class="mid" id="v-heat">—</div>
             <div class="flag" id="f-2" hidden>끊김</div>
           </div>
           <div class="plots">
-            <div class="plot"><svg id="s-temp" preserveAspectRatio="none" role="img" aria-label="#2 패드 온도 최근 60초, 아래 띠는 히터 ON 구간"></svg><div class="axis">20 ~ 80 ℃ · 아래 띠 <span class="sw"></span> = 히터 ON</div><div class="tip" hidden></div></div>
+            <div class="plot"><svg id="s-temp" preserveAspectRatio="none" role="img" aria-label="#2 히터면 온도 최근 60초, 아래 띠는 히터 ON 구간"></svg><div class="axis">20 ~ 80 ℃ · 아래 띠 <span class="sw"></span> = 히터 ON</div><div class="tip" hidden></div></div>
           </div>
         </div>
         <div class="card chart" id="ch-3">

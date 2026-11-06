@@ -27,9 +27,9 @@
 - "클라우드 도달 확인 N ms"는 내 기기 에코(브로커까지 갔다 옴)일 뿐이다. 5초 안에 다른 기기 응답이 없으면 "다른 기기 응답 없음" — 다른 기기도 로그인돼 있는지 확인. 연결이 끊기면 버튼이 꺼진다.
 
 ## 화면
-CO₂(상태≠1이면 "예열 중"), 냄새 지수(null이면 "센서 안정화 중", 2 이상 주황), 심부·패드 온도, 히터(board2.fault≠0이면 "안전 OFF" + fault_text 문구: sensor=센서 오류, overheat=과열 55℃ 래치, timeout=연속 가열 상한 30분, rate=상승률 이상), 게이트웨이 온라인·마지막 수신. 게이트웨이 10초 무수신이면 "끊김", 게이트웨이는 살아 있는데 보드(b1/b2)만 15초 넘게 안 오면 해당 카드 회색 "수신 끊김".
+CO₂(상태≠1이면 "예열 중"), 냄새 지수(null이면 "센서 안정화 중", 2 이상 주황), 심부·히터면 온도, 히터(board2.fault≠0이면 "안전 OFF" + fault_text 문구: sensor=센서 오류, overheat=과열 55℃ 래치, timeout=연속 가열 상한 30분, rate=상승률 이상), 게이트웨이 온라인·마지막 수신. 게이트웨이 10초 무수신이면 "끊김", 게이트웨이는 살아 있는데 보드(b1/b2)만 15초 넘게 안 오면 해당 카드 회색 "수신 끊김".
 - "시험값" 배지: `app.js`의 `FAKE_B1`(#1 USE_FAKE_SENSORS)·`FAKE_ODOR`(냄새 지수 = 가변저항 pot_v). **실측 전환 시 false로.**
-- 2보드(firmware2, 11/05) 자동 판별: status `boards:2` 또는 telemetry `board_ok`·`board2.target_c`. 이때 시험값 배지 해제, 패드 온도 → 제어 온도(`ctrl_temp_c`)+목표(`target_c`), 과열 래치(`latched`) 배지, 절전(ECO) 배지 = auto + 목표 ≤30.5℃, #2 히터 ON 비활성(강제 ON 없음), 목표 30~40℃ `{"id","cmd":"set_target","target_c"}` + `oink/gateway/cmd/ack` 결과 표시, #3 LED·#2→#3 행은 "해당 없음", 가변저항 섹션 접힘.
+- 2보드(firmware2, 11/05) 자동 판별: status `boards:2` 또는 telemetry `board_ok`·`board2.target_c`. 이때 시험값 배지 해제, 히터면 온도 → 제어 온도(`ctrl_temp_c`)+목표(`target_c`), 과열 래치(`latched`) 배지, 절전(ECO) 배지 = auto + 목표 ≤30.5℃, #2 히터 ON 비활성(강제 ON 없음), 목표 30~40℃ `{"id","cmd":"set_target","target_c"}` + `oink/gateway/cmd/ack` 결과 표시, #3 LED·#2→#3 행은 "해당 없음", 가변저항 섹션 접힘.
 - 펌웨어 98c9db5(11/06): `board2.temp2_c` = 히터면 DS18B20 #2, `ctrl_src` = `core`(#1 심부)/`local`(#1 끊김 → 히터면 대체, 목표 40℃ 고정, "대체 제어" 배지), fault 7 `local_sensor` 추가. DB 컬럼 temp2_c·ctrl_src는 migration 20261106040000 적용 후 표시(미적용이면 DB 섹션에 안내).
 - ESP32 상태 카드 진단: reset_reason·reconnects·wifi_disc·wifi_disc_reason·mqtt_conns(게이트웨이 status, retained)와 free_heap(telemetry).
 - 기본 계정 oink-web/oink-web이 채워져 있음 — 공개 사이트라 누구나 접속 가능, 비공개가 필요하면 EMQX에서 비번 변경 후 기본값 제거.
