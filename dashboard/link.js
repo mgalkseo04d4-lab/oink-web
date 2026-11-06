@@ -97,11 +97,16 @@
     rate: "상승률 이상 (가열 5분에 +1℃ 미만)",
   };
   const FAULT_BY_NUM = ["ok", "sensor", "overheat", "timeout", "rate"];
-  // 2보드 firmware2 (oink2_main heater_core.h faultText) — board2에 target_c가 있으면 이 표
+  // 2보드 firmware2 (oink2_main heater_core.h faultText, 98c9db5) — board2에 target_c가 있으면 이 표
+  // 과열·45℃ 판단 = max(심부(유효할 때), 히터면). no_data(1)는 98c9db5부터 안 냄(#1 끊김 → 대체 제어), 번호만 보존.
   const FAULT2 = {
-    ok: "", no_data: "#1 데이터 없음·끊김 → 히터 OFF", overheat: "과열 50℃ 래치", ontime_rest: "연속 가열 30분 — 10분 휴지",
-    no_rise: "온도 안 오름 래치", hard_off: "심부 45℃ 이상 → OFF", board_mismatch: "보드 불일치 → 히터 OFF",
+    ok: "", no_data: "#1 데이터 없음·끊김 → 히터 OFF (구 펌웨어)", overheat: "과열 50℃ 래치 (심부·히터면 중 높은 값)",
+    ontime_rest: "연속 가열 30분 — 10분 휴지", no_rise: "온도 안 오름 래치", hard_off: "45℃ 이상 → OFF (심부·히터면 중 높은 값)",
+    board_mismatch: "보드 불일치 → 히터 OFF", local_sensor: "히터면 센서(#2 DS18B20) 실패 → 히터 OFF",
   };
+  // board2.ctrl_src (heater_core.h srcText): "core" = #1 심부 제어, "local" = #1 끊김 → 히터면 DS18B20 #2 대체 제어(목표 40℃ 고정)
+  const LOCAL_TARGET_C = 40;
+  const ctrlSrc = (b) => (b && (b.ctrl_src === "core" || b.ctrl_src === "local") ? b.ctrl_src : null);
   const FAULT2_BY_NUM = Object.keys(FAULT2);
   // 2보드(firmware2) 판별: status boards:2, 또는 telemetry board_ok / board2.target_c (firmware2에만 있음)
   const isTwoBoard = (tele, diag) => (diag && diag.boards === 2) || !!(tele && ("board_ok" in tele || (tele.board2 && "target_c" in tele.board2)));
@@ -135,7 +140,7 @@
 
   const api = { C, G, makeLink, addSample, linkStats, ageTone, rateTone, lossTone, rssiTone,
     makeGw, gwSample, heapLeak, gwAgeTone, fmtUptime,
-    faultText, errText, resetText, wifiReasonText, boardStale, BOARD_STALE_MS, isTwoBoard };
+    faultText, errText, resetText, wifiReasonText, boardStale, BOARD_STALE_MS, isTwoBoard, ctrlSrc, LOCAL_TARGET_C };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else g.OinkLink = api;
 })(typeof window !== "undefined" ? window : globalThis);

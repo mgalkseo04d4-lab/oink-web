@@ -66,4 +66,9 @@ console.log("dbcheck ok");
   assert.deepEqual(live.map((p) => p.v), [600, 640, 1]);        // live 첫 점보다 오래된 DB 점만 앞에
   assert.deepEqual(D.histPts(null).co2, []);
 }
+// 98c9db5 생성 컬럼 메모
+assert.match(D.latestNote(null, false), /20261106040000 적용 필요/);
+assert.equal(D.latestNote(null, true), "");
+assert.equal(D.latestNote({ ctrl_src: "local", temp2_c: 39.94 }, true), "최신 행: 제어 히터면 대체(#1 끊김) · 히터면 39.9℃");
+assert.equal(D.latestNote({ ctrl_src: "core", temp2_c: null }, true), "최신 행: 제어 #1 심부 · 히터면 —");
 console.log("dbcheck: 미리 채우기 OK");

@@ -58,7 +58,7 @@
         <div class="card stat" id="c-odor"><div class="label" title="board1.odor_index">냄새 지수 (H₂S) <span class="badge" id="bd-odor" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div><div class="sub">시험 범위 0~100</div></div>
         <div class="card stat" id="c-t1"><div class="label" title="board1.temp1_c">심부 온도 <span class="badge" id="bd-t1" title="펌웨어 시험값 — 실측 아님">시험값</span></div><div class="value">—</div></div>
         <div class="card stat" id="c-t2"><div class="label" id="t2-label" title="board2.temp2_c">패드 온도</div><div class="value">—</div><div class="sub"></div></div>
-        <div class="card stat" id="c-heat"><div class="label" title="board2.heater_on · fault_text · mode · target_c · latched · err">히터 <span class="badge eco" id="bd-eco" title="mode auto + target_c ≤ 30.5" hidden>🌱 절전(ECO, 목표 30℃)</span><span class="badge latch" id="bd-latch" title="board2.latched" hidden>과열 래치</span></div><div class="value">—</div><div class="sub"></div><div class="sub" id="heat-latch" hidden>래치 해제 조건: #1 정상 패킷 10개 연속 + 심부 &lt; 목표−2℃ + 래치 뒤 OFF 명령</div></div>
+        <div class="card stat" id="c-heat"><div class="label" title="board2.heater_on · fault_text · mode · target_c · latched · err">히터 <span class="badge eco" id="bd-eco" title="mode auto + target_c ≤ 30.5" hidden>🌱 절전(ECO, 목표 30℃)</span><span class="badge local" id="bd-local" title="board2.ctrl_src = local" hidden>#1 끊김, 대체 제어 중</span><span class="badge latch" id="bd-latch" title="board2.latched" hidden>과열 래치</span></div><div class="value">—</div><div class="sub"></div><div class="sub" id="heat-latch" hidden>래치 해제 조건: 래치 뒤 OFF 명령 + 히터면 센서 정상·&lt; 38℃ + (심부 제어 중이면 #1 정상 10개 연속 + 심부 &lt; 목표−2℃)</div></div>
       </div>
       <h2 class="sec">ESP32 상태</h2>
       <div class="grid2">
@@ -157,6 +157,7 @@
       <div class="card db">
         <div class="label">수집 상태 (EMQX → DB, telemetry)</div>
         <p id="dbIngest" class="dbstate">—</p>
+        <p id="dbLatest" class="dbstate"></p>
         <p id="dbErr" class="err" role="status"></p>
         <p id="dbView" class="dbstate">1분 집계 뷰: 확인 중</p>
         <div class="label">데이터 품질 (data_quality 최신 30건)</div>

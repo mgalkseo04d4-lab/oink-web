@@ -12,6 +12,13 @@
     if (n < C.OK_MIN || ageS > C.STALE_S) return { tone: "warn", text: `최근 1분 ${n}행 (정상 ≈${C.EXPECT_PER_MIN}) · 마지막 ${fmtAge(ageS)} 전` };
     return { tone: "ok", text: `최근 1분 ${n}행 · 마지막 ${fmtAge(ageS)} 전` };
   }
+  // 최신 행 메모(98c9db5 생성 컬럼 temp2_c·ctrl_src — 20261106040000 미적용이면 컬럼 없음 → newCols=false)
+  function latestNote(row, newCols) {
+    if (!newCols) return "temp2_c·ctrl_src 컬럼 없음 — supabase/migrations/20261106040000 적용 필요";
+    if (!row) return "";
+    const src = row.ctrl_src === "local" ? "히터면 대체(#1 끊김)" : row.ctrl_src === "core" ? "#1 심부" : "—";
+    return `최신 행: 제어 ${src} · 히터면 ${row.temp2_c != null ? `${Math.round(row.temp2_c * 10) / 10}℃` : "—"}`;
+  }
   const fmtAge = (s) => (s < 90 ? `${Math.round(s)}초` : s < 5400 ? `${Math.round(s / 60)}분` : `${Math.round(s / 3600)}시간`);
 
   // flag 색 (data_quality.md 표시 규칙: 온도 급변은 시연·투입 때 정상 → 경고색 금지)
@@ -102,15 +109,17 @@
       const since = new Date(Date.now() - 60000).toISOString();
       const [cnt, last, dq, ev, fd] = await Promise.all([
         get(`telemetry?select=id&received_at=gte.${encodeURIComponent(since)}`, { Prefer: "count=exact", Range: "0-0" }),
-        get("telemetry?select=received_at&order=received_at.desc&limit=1").then((r) => r.json()),
+        get("telemetry?select=received_at,temp2_c,ctrl_src&order=received_at.desc&limit=1").then((r) => r.json()).then((rows) => ({ rows, newCols: true }))
+          .catch(() => get("telemetry?select=received_at&order=received_at.desc&limit=1").then((r) => r.json()).then((rows) => ({ rows, newCols: false }))),
         get("data_quality?select=metric,flag,reason,first_ts,last_ts,n&order=last_ts.desc&limit=30").then((r) => r.json()),
         get("events?select=ts,kind,detail&order=ts.desc&limit=30").then((r) => r.json()),
         get("feed_log?select=fed_at,size,amount_g,food,created_by&order=fed_at.desc&limit=10").then((r) => r.json()),
       ]);
       const n = parseCount(cnt.headers.get("content-range")) ?? 0;
-      const ageS = last[0] ? (Date.now() - new Date(last[0].received_at)) / 1000 : null;
+      const ageS = last.rows[0] ? (Date.now() - new Date(last.rows[0].received_at)) / 1000 : null;
       const st = ingestState(n, ageS);
       const el = $("dbIngest"); el.textContent = st.text; el.className = `dbstate ${st.tone}`;
+      const ln = $("dbLatest"); if (ln) { ln.textContent = latestNote(last.rows[0], last.newCols); ln.className = `dbstate ${last.newCols ? "" : "warn"}`; }
       $("dbDq").innerHTML = dq.length ? dq.map(dqRow).map((r) =>
         `<tr><td>${esc(r.metric)}</td><td><span class="fl ${r.tone}">${esc(r.flag)}</span></td><td>${esc(r.reason)}</td><td>${esc(r.span)}</td><td>${r.n}</td></tr>`).join("")
         : `<tr><td colspan="5" class="empty">기록 없음</td></tr>`;
@@ -142,7 +151,7 @@
     } catch { return 0; }
   }
 
-  const api = { C, ingestState, flagTone, dqRow, eventSummary, eventRow, feedRow, parseCount, fmtAge, histPts, prepend, refresh, start, prefill };
+  const api = { C, ingestState, latestNote, flagTone, dqRow, eventSummary, eventRow, feedRow, parseCount, fmtAge, histPts, prepend, refresh, start, prefill };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else g.OinkDb = api;
 })(typeof window !== "undefined" ? window : globalThis);

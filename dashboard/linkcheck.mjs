@@ -111,9 +111,20 @@ assert.equal(L.isTwoBoard(fw2, null), true);
 assert.equal(L.isTwoBoard({ board2: { temp2_c: 30, mode: "auto" } }, null), false);
 assert.equal(L.isTwoBoard({}, { boards: 2 }), true);
 assert.equal(L.isTwoBoard(null, null), false);
-assert.equal(L.faultText({ target_c: 37, fault: 2, fault_text: "overheat" }), "과열 50℃ 래치"); // 3보드 55℃와 구분
-assert.equal(L.faultText({ target_c: 37, fault: 1, fault_text: "no_data" }), "#1 데이터 없음·끊김 → 히터 OFF");
-assert.equal(L.faultText({ target_c: 37, fault: 5 }), "심부 45℃ 이상 → OFF");
+assert.equal(L.faultText({ target_c: 37, fault: 2, fault_text: "overheat" }), "과열 50℃ 래치 (심부·히터면 중 높은 값)"); // 3보드 55℃와 구분
+assert.equal(L.faultText({ target_c: 37, fault: 1, fault_text: "no_data" }), "#1 데이터 없음·끊김 → 히터 OFF (구 펌웨어)");
+assert.equal(L.faultText({ target_c: 37, fault: 5 }), "45℃ 이상 → OFF (심부·히터면 중 높은 값)");
+// 98c9db5: fault 7 local_sensor, ctrl_src core/local
+assert.equal(L.faultText({ target_c: 37, fault: 7, fault_text: "local_sensor" }), "히터면 센서(#2 DS18B20) 실패 → 히터 OFF");
+assert.equal(L.faultText({ target_c: 37, fault: 7 }), "히터면 센서(#2 DS18B20) 실패 → 히터 OFF"); // 번호만 와도
+const fw98 = { board_ok: true, board2: { temp2_c: 36.5, ctrl_src: "local", ctrl_temp_c: 36.5, target_c: 37, mode: "auto", latched: false, fault: 0, fault_text: "ok" } };
+assert.equal(L.isTwoBoard(fw98, { online: true, boards: 2 }), true);
+assert.equal(L.ctrlSrc(fw98.board2), "local");
+assert.equal(L.ctrlSrc({ ctrl_src: "core" }), "core");
+assert.equal(L.ctrlSrc({ temp2_c: null }), null); // 11/05 firmware2·3보드: 필드 없음
+assert.equal(L.ctrlSrc(null), null);
+assert.equal(L.LOCAL_TARGET_C, 40);
+assert.ok((await import("node:fs")).readFileSync(new URL("./index.html", import.meta.url), "utf8").includes(">#1 끊김, 대체 제어 중<")); // 대체 제어 배지 문구 고정
 assert.equal(L.faultText({ target_c: 37, fault: 0, fault_text: "ok" }), "");
 assert.equal(L.faultText({ target_c: 37, fault: 9, fault_text: "?" }), "? (코드 9)");
 // firmware2 rx.all → #1 수신 수

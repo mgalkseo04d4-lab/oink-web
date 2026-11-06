@@ -55,18 +55,23 @@ function render() {
   setCard("c-odor", !b1 ? off1 : b1.odor_index == null ? "센서 안정화 중" : `${fmt(b1.odor_index, 1)}`, !b1 ? t1 : "",
     typeof gw.tele?.pot_v === "number" ? `pot_v ${gw.tele.pot_v.toFixed(2)} V · 시험 범위 0~100` : "시험 범위 0~100");
   setCard("c-t1", !b1 ? off1 : fmt(b1.temp1_c) != null ? `${fmt(b1.temp1_c)} ℃` : "센서 오류", b1 ? "" : t1);
-  const ctrlT = two && b2 && b2.temp2_c == null && "ctrl_temp_c" in b2; // 패드 센서 없음 → 제어 온도(#1 심부)
-  $("t2-label").textContent = ctrlT ? "제어 온도 (#1 심부, 무선)" : "패드 온도";
-  $("t2-label").title = ctrlT ? "board2.ctrl_temp_c · target_c" : "board2.temp2_c";
+  const src = OinkLink.ctrlSrc(b2); // 98c9db5: "core"(#1 심부) / "local"(#1 끊김 → 히터면 #2 대체, 목표 40℃)
+  const ctrlT = !src && two && b2 && b2.temp2_c == null && "ctrl_temp_c" in b2; // 11/05 firmware2: 히터면 센서 없음 → 제어 온도(#1 심부)
+  $("t2-label").textContent = src ? "히터면 온도 (#2 DS18B20)" : ctrlT ? "제어 온도 (#1 심부, 무선)" : "패드 온도";
+  $("t2-label").title = src ? "board2.temp2_c · ctrl_src · ctrl_temp_c · target_c" : ctrlT ? "board2.ctrl_temp_c · target_c" : "board2.temp2_c";
   const tgt = fmt(b2?.target_c);
-  if (ctrlT) setCard("c-t2", fmt(b2.ctrl_temp_c) != null ? `${fmt(b2.ctrl_temp_c)} ℃` : "#1 데이터 없음", fmt(b2.ctrl_temp_c) != null ? "" : "bad",
+  const effTgt = src === "local" ? OinkLink.LOCAL_TARGET_C : tgt; // 대체 제어 중엔 펌웨어 고정 목표 40℃
+  if (src) setCard("c-t2", fmt(b2.temp2_c) != null ? `${fmt(b2.temp2_c)} ℃` : "센서 실패", fmt(b2.temp2_c) != null ? "" : "bad",
+    `제어 ${src === "local" ? "히터면 대체(#1 끊김)" : "#1 심부"} ${fmt(b2.ctrl_temp_c) ?? "—"}℃ → 목표 ${effTgt ?? "—"}℃`);
+  else if (ctrlT) setCard("c-t2", fmt(b2.ctrl_temp_c) != null ? `${fmt(b2.ctrl_temp_c)} ℃` : "#1 데이터 없음", fmt(b2.ctrl_temp_c) != null ? "" : "bad",
     tgt != null ? `목표 ${tgt}℃` : "");
   else setCard("c-t2", !b2 ? off2 : fmt(b2.temp2_c) != null ? `${fmt(b2.temp2_c)} ℃` : "센서 오류", b2 ? "" : t2, "");
   const ft = OinkLink.faultText(b2);
   setCard("c-heat", !b2 ? off2 : b2.heater_on ? "ON" : ft ? "안전 OFF" : "OFF",
     !b2 ? t2 : b2.heater_on ? "warn" : ft ? "bad" : "",
-    b2 ? `${ft || "정상"} · mode ${b2.mode ?? "—"}${tgt != null ? ` · 목표 ${tgt}℃` : ""}${b2.fault != null ? ` · fault ${b2.fault}` : ""} · err ${b2.err ?? b2.reasons ?? "—"}` : "");
-  $("bd-eco").hidden = !OinkCtrl.isEco(b2);
+    b2 ? `${ft || "정상"} · mode ${b2.mode ?? "—"}${effTgt != null ? ` · 목표 ${effTgt}℃` : ""}${src ? ` · ctrl_src ${src}` : ""}${b2.fault != null ? ` · fault ${b2.fault}` : ""} · err ${b2.err ?? b2.reasons ?? "—"}` : "");
+  $("bd-eco").hidden = !OinkCtrl.isEco(b2) || src === "local";
+  $("bd-local").hidden = src !== "local";
   $("bd-latch").hidden = $("heat-latch").hidden = !(b2 && b2.latched === true);
   // firmware2에는 가짜값 모드가 없음(README) → 2보드면 시험값 배지 해제
   for (const [id, on] of [["bd-co2", FAKE_B1], ["bd-t1", FAKE_B1], ["bd-odor", FAKE_ODOR], ["bd-dco2", FAKE_B1], ["bd-dt1", FAKE_B1]]) $(id).hidden = two || !on;
@@ -107,7 +112,7 @@ function renderCtrl() {
       $("tgtRow").hidden = !two;
       $("tgtApply").disabled = $("tgtEco").disabled = !(v.enabled && connected);
       $("b2note").textContent = two
-        ? "보드 안전 규칙이 우선합니다. #1 데이터가 없거나 심부 45℃ 이상이면 꺼지고, 50℃면 래치됩니다. 목표 30~40℃(절전 = 30℃)."
+        ? "보드 안전 규칙이 우선합니다. #1이 끊기면 히터면 센서로 대체 제어(목표 40℃). 히터면 센서 실패 또는 심부·히터면 중 높은 값 45℃ 이상이면 꺼지고, 50℃면 래치됩니다. 목표 30~40℃(절전 = 30℃)."
         : "보드 안전 규칙이 우선합니다. 온도를 읽지 못하거나 50℃를 넘으면 ON을 눌러도 꺼집니다.";
     }
     setText(card.querySelector(".state"), v.label, `state ${v.tone}`);
