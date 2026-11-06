@@ -303,10 +303,13 @@ button.primary, .seg button[aria-pressed=true] { background: linear-gradient(180
 .splash .sc1 .pigwrap { width: min(62vw, 260px); }
 .splash .sc2 { justify-content: space-between; padding-top: 16vh; overflow: hidden; }
 .peek { position: relative; width: 100%; height: 52vh; overflow: hidden; }
-.peek img { position: absolute; left: 50%; top: 9vh; width: min(132vw, 640px); transform: translateX(-46%); filter: drop-shadow(0 -6px 18px rgba(214, 120, 140, .18)); }
-.peek .lines { position: absolute; left: 18%; top: 0; width: 70px; }
+/* 아래쪽만 화면 밖으로: 귀·꼬리는 항상 보이게 폭 90vw, 코 아래(이미지 높이 70%)까지 노출 */
+.peek .pk { position: absolute; left: 50%; bottom: 0; width: min(90vw, 520px); transform: translate(-52%, 30%); }
+.peek img { display: block; width: 100%; height: auto; filter: drop-shadow(0 -6px 18px rgba(214, 120, 140, .18)); }
+.peek .lines { position: absolute; left: 4%; top: -14%; width: 18%; }
 .sp-hint { position: absolute; left: 0; right: 0; bottom: calc(22px + env(safe-area-inset-bottom)); margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: .8rem; font-weight: 700; z-index: 2; }
 .sp-hint .dots { display: flex; gap: 6px; }
 .sp-hint .dots i { width: 7px; height: 7px; border-radius: 50%; background: #E8D8DA; }
 .splash:not(.two) .sp-hint .dots i:first-child, .splash.two .sp-hint .dots i:last-child { background: var(--brand); }
-.splash.two .sp-hint { color: #fff; text-shadow: 0 1px 3px rgba(150, 60, 80, .6); }
+.splash.two .sp-hint { color: #3D2E2E; }
+.sp-hint .lbl { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 18px; background: rgba(255, 255, 255, .85); }
