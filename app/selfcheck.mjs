@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
   homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
-  rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange } from "./logic.mjs";
+  rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
+  heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -119,4 +120,21 @@ assert.equal(hotFoodStep(back, { series: S(sh(tRise, 120000)), co2s: sh(cJump, 1
 assert.equal(hotFoodStep(back, { series: S(sh(tRise, HOT_COOLDOWN_MS)), co2s: sh(cJump, HOT_COOLDOWN_MS), now: now + HOT_COOLDOWN_MS, cur: { t1: 33.5 } }).action, "off");
 assert.ok(autoRange([700, 701], 20).max - autoRange([700, 701], 20).min >= 20);
 assert.equal(autoRange([4990, 5000], 40, CO2_MAX).max, CO2_MAX);
+// 히터 모드(ECO = auto + 목표 30℃)
+assert.equal(heatModeOf(null), null);
+assert.equal(heatModeOf({ mode: "off", target_c: 30 }), "off");
+assert.equal(heatModeOf({ mode: "auto", target_c: 30 }), "eco");
+assert.equal(heatModeOf({ mode: "auto", target_c: 37 }), "auto");
+assert.equal(heatModeOf({ mode: "auto" }), "auto");                 // 구 3보드: target_c 없음 → ECO 판정 안 함
+let n = 0; const mkId = () => `c${n++}`;
+assert.deepEqual(heaterCmds("off", mkId), [{ id: "c0", target: "b2", heater: "off" }]);
+const eco = heaterCmds("eco", mkId);
+assert.deepEqual(eco.map((c) => c.cmd || c.heater), ["set_target", "auto"]);
+assert.equal(eco[0].target_c, ECO_TARGET);
+assert.equal(heaterCmds("auto", mkId)[0].target_c, AUTO_TARGET);
+assert.deepEqual(heaterCmds("on", mkId), []);                          // 강제 ON 없음
+assert.ok(heaterCmds("eco", mkId).every((c) => Object.keys(c).filter((k) => k === "cmd" || k === "heater").length === 1)); // 한 메시지 한 명령
+assert.equal(restoreMode("eco"), "eco");
+assert.equal(restoreMode("auto"), "auto");
+assert.equal(restoreMode(null), "auto");
 console.log("selfcheck ok");

@@ -1,12 +1,14 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
-  DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, HOT_MSG_OFF, HOT_MSG_AUTO, autoRange, CO2_MAX, HOLD_RESEND_MS } from "./logic.mjs";
+  DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, HOT_MSG_OFF, HOT_MSG_AUTO, autoRange, CO2_MAX, HOLD_RESEND_MS,
+  heatModeOf, heaterCmds, restoreMode } from "./logic.mjs";
 
 const T = {
   status: "oink/gateway/status",
   tele: "oink/gateway/telemetry",
   feed: "oink/app/feed_log",
   cmd: "oink/gateway/cmd",
+  ack: "oink/gateway/cmd/ack", // firmware2: {"id","ok","msg"}
 };
 // 펌웨어 #1이 아직 가짜값(USE_FAKE_SENSORS) — 실측 전환 시 false로. CO₂·심부온도 배지가 "시험값"/"실측"으로 바뀐다.
 const FAKE_B1 = true;
@@ -22,6 +24,7 @@ const KEY_CO2 = "oink.app.co2log";   // 실측 CO₂ 기록(재방문 시 유지
 const KEY_BASE = "oink.app.co2base"; // { feedTs, base } 투입 직후 첫 유효 CO₂
 const KEY_AMP = "oink.app.amp";
 const KEY_DEMO = "oink.app.demo";
+const KEY_PREHOT = "oink.app.prehot"; // 뜨거운 음식물 감지 직전 히터 모드(복귀 때 ECO 유지용)
 const KEY_HOT = "oink.app.hot";      // 뜨거운 음식물 감지 상태(앱을 다시 열어도 복귀 판단 이어짐)
 const BROKER = "wss://o9f10aca.ala.asia-southeast1.emqxsl.com:8084/mqtt"; // 주소 고정(로그인 화면에 칸 없음)
 const store = {
@@ -45,7 +48,9 @@ let demo = store.get(KEY_DEMO) === "1";
 let hotSt = loadJson(KEY_HOT, null);
 let liveKey = "co2", liveBase = null;
 let predSpanH = 24; // 분석 화면 x축: 하루(24h) / 일주일(DECOMP_END_H)
-let pendingHeat = null; // { want, sentAt, auto }
+let pendingHeat = null; // { want, ids, acks, sentAt, auto }
+let preHot = store.get(KEY_PREHOT) || null;
+const MODE_NAME = { off: "히터 끄기", auto: "자동 모드", eco: "🌱 에코 절전" };
 let toastTimer = null;
 let lastCo2Save = 0;
 let feedLog = [];
@@ -196,10 +201,13 @@ function render() {
     prevState = cur;
   }
 
-  $("hero").className = `hero ${hs.state}`;
+  const hm = heatModeOf(b2);
+  const ecoHome = hs.state === "calm" && hm === "eco" && !b2?.latched; // 이상·끊김·래치가 ECO보다 우선
+  const latchHome = !!b2?.latched && hs.state === "calm"; // 래치 중엔 웃는 얼굴·꽃 대신 기본 표정
+  $("hero").className = `hero ${hs.state}${ecoHome ? " eco" : ""}${latchHome ? " latch" : ""}`;
   // 표정 이미지(판정은 logic 그대로): 정상=웃음, 이상=화남, 대기·데이터 없음=기본, 끊김=기본+회색
   const linked = !!(client?.connected && gw.online);
-  const face = hs.state === "calm" ? "happy" : hs.state === "alert" ? "angry" : "base";
+  const face = ecoHome || latchHome ? "base" : hs.state === "calm" ? "happy" : hs.state === "alert" ? "angry" : "base";
   const pigCls = `pig ${hs.state}${hs.state === "sleep" && !linked ? " off" : ""}`;
   const pig = $("pig");
   if (pig.dataset.face !== face) {
@@ -207,7 +215,9 @@ function render() {
     pig.classList.remove("pop"); void pig.offsetWidth; pig.classList.add("pop"); // 전환 시 squash-bounce
   }
   pig.className = `${pigCls}${pig.classList.contains("pop") ? " pop" : ""}`;
-  const txt = homeText(hs);
+  const latched = !!b2?.latched; // firmware2 과열 래치: 해제 = 식은 뒤 off 명령
+  const txt = latched && hs.state !== "sleep" && hs.state !== "alert" ? "과열 차단 중이에요 — 식은 뒤 '히터 끄기'로 해제"
+    : ecoHome ? "에너지 아끼며 새근새근 낮잠 자는 중… zZ 🐽" : homeText(hs);
   $("moodText").textContent = txt;
   pig.alt = `Oink: ${txt}`;
 
@@ -220,7 +230,8 @@ function render() {
   $("cCo2").classList.toggle("hot", hs.reasons.includes("co2"));
   const t = b1?.temp1_c;
   $("vTemp").textContent = Number.isFinite(t) ? t.toFixed(1) : "—";
-  $("nTemp").textContent = !b1 ? "연결 안 됨" : hs.reasons.includes("hot") ? "너무 뜨거워요!" : Number.isFinite(b2?.temp2_c) ? `바닥 ${b2.temp2_c.toFixed(1)}℃` : "적당해요";
+  $("nTemp").textContent = !b1 ? "연결 안 됨" : hs.reasons.includes("hot") ? "너무 뜨거워요!" : Number.isFinite(b2?.temp2_c) ? `바닥 ${b2.temp2_c.toFixed(1)}℃`
+    : Number.isFinite(b2?.target_c) ? `목표 ${b2.target_c.toFixed(1)}℃` : "적당해요"; // firmware2: temp2_c 항상 null
   $("cTemp").classList.toggle("hot", hs.reasons.includes("hot"));
   $("vOdor").textContent = Number.isFinite(b1?.odor_index) ? Math.round(b1.odor_index) : "—";
 
@@ -248,14 +259,36 @@ function render() {
   const hb = $("heatBadge");
   if (!b2) { hb.textContent = "연결 안 됨"; hb.className = "badge"; }
   else if (b2.reasons) { hb.textContent = "안전 OFF"; hb.className = "badge warn"; }
+  else if (hm === "eco") { hb.textContent = b2.heater_on ? "🌱 절전 가열 중" : "🌱 절전 대기 중"; hb.className = "badge eco"; }
   else { hb.textContent = b2.heater_on ? "데우는 중" : "쉬는 중"; hb.className = `badge ${b2.heater_on ? "good" : ""}`; }
-  const mode = b2?.mode;
-  $("heatMode").textContent = !b2 ? "연결 안 됨" : mode === "auto" ? "자동" : mode === "off" ? "꺼짐(OFF)" : mode === "on" ? "켜짐(ON)" : "펌웨어 대기";
+  $("heatMode").textContent = !b2 ? "연결 안 됨" : hm === "auto" ? "자동" : hm === "eco" ? "🌱 에코 절전" : hm === "off" ? "꺼짐(OFF)" : hm === "on" ? "켜짐(ON)" : "펌웨어 대기";
+  $("ecoNote").hidden = hm !== "eco";
+  for (const el of document.querySelectorAll(".latchNote")) el.hidden = !latched;
+  // 홈 모드 칩 + 절전 토글(실제 상태는 telemetry 기준 → 실패하면 자연히 원래 상태로 돌아감)
+  const chip = $("modeChip");
+  chip.hidden = !hm;
+  chip.className = `chip ${hm || ""}`;
+  chip.textContent = hm === "eco" ? "🌱 절전 모드" : hm === "off" ? "히터 꺼짐" : hm === "auto" ? "자동 모드" : hm || "";
+  const busy = !!pendingHeat && !pendingHeat.auto && (pendingHeat.want === "eco" || pendingHeat.want === "auto");
+  const tg = $("ecoToggle");
+  tg.hidden = hm === "off";
+  $("ecoOffNote").hidden = hm !== "off";
+  tg.classList.toggle("on", hm === "eco");
+  tg.classList.toggle("busy", busy);
+  tg.setAttribute("aria-checked", String(hm === "eco"));
+  tg.disabled = !client?.connected || !hm || busy;
+  $("ecoCard").classList.toggle("on", hm === "eco");
+  $("ecoSub").textContent = !hm ? "기기와 연결되면 바꿀 수 있어요" : busy ? "기기에 보내는 중…"
+    : hm === "eco" ? "목표 온도 30℃로 낮춰 히터 가동을 줄여요" : "목표 37℃로 분해를 도와요";
+  for (const [id, m] of [["autoBtn", "auto"], ["ecoBtn", "eco"], ["offBtn", "off"]]) $(id).classList.toggle("cur", hm === m);
   if (pendingHeat) {
     const who = pendingHeat.auto ? "앱 자동 제어 · " : "";
-    if (mode === pendingHeat.want) { $("cmdMsg").textContent = `✅ ${who}${pendingHeat.want === "off" ? "히터 끄기" : "자동 모드"} 적용됨`; pendingHeat = null; }
-    else if (now - pendingHeat.sentAt > HEAT_TIMEOUT_MS) { $("cmdMsg").textContent = `⚠️ ${who}기기 응답 없음 — 명령이 반영되지 않았어요`; pendingHeat = null; }
-    else $("cmdMsg").textContent = `📤 ${who}보내는 중…`;
+    const name = MODE_NAME[pendingHeat.want];
+    if (hm === pendingHeat.want) { $("cmdMsg").textContent = `✅ ${who}${name} 적용됨`; pendingHeat = null; }
+    else if (now - pendingHeat.sentAt > HEAT_TIMEOUT_MS) {
+      $("cmdMsg").textContent = pendingHeat.acks ? `⚠️ ${who}기기는 받았지만 아직 반영되지 않았어요` : `⚠️ ${who}기기 응답 없음 — 명령이 반영되지 않았어요`;
+      pendingHeat = null;
+    } else $("cmdMsg").textContent = pendingHeat.acks ? `📨 ${who}기기가 받았어요 · 반영 중…` : `📤 ${who}${name} 보내는 중…`;
   }
 
   // 알림 배지
@@ -306,7 +339,7 @@ function render() {
     }));
   }
   const dis = !client?.connected;
-  for (const b of document.querySelectorAll("#feedBtns button, #homeFeed button, #offBtn, #autoBtn")) b.disabled = dis;
+  for (const b of document.querySelectorAll("#feedBtns button, #homeFeed button, #offBtn, #autoBtn, #ecoBtn")) b.disabled = dis;
 }
 
 $("clearEv").addEventListener("click", () => { events = []; store.set(KEY_EV, "[]"); render(); });
@@ -364,6 +397,14 @@ function onMessage(topic, buf) {
   let msg;
   try { msg = JSON.parse(raw); } catch { return; }
   if (!msg || typeof msg !== "object") return;
+  if (topic === T.ack) {
+    if (pendingHeat?.ids.includes(msg.id)) {
+      if (msg.ok === false) { $("cmdMsg").textContent = `⚠️ 기기가 거절했어요: ${String(msg.msg || "이유 없음")}`; pendingHeat = null; }
+      else pendingHeat.acks++;
+      render();
+    }
+    return;
+  }
   if (topic === T.status) gw.online = !!msg.online;
   else if (topic === T.tele) {
     gw.tele = msg; gw.online = true; gw.lastSeen = Date.now();
@@ -383,9 +424,11 @@ function onMessage(topic, buf) {
     if (client?.connected) {
       const r = hotFoodStep(hotSt, { series: { t1: tempHist, t2: temp2Hist }, co2s: co2Hist, now, cur: { t1: b1?.temp1_c, t2: b2?.temp2_c } });
       if (r.st !== hotSt) { hotSt = r.st; store.set(KEY_HOT, JSON.stringify(hotSt)); }
-      if (r.action === "off") { notify("hot_on", HOT_MSG_OFF); sendHeater("off", true); lastHoldSend = now; }
-      else if (r.action === "auto") { notify("hot_off", HOT_MSG_AUTO); sendHeater("auto", true); }
-      else if (hotSt?.active && now - lastHoldSend >= HOLD_RESEND_MS) { // #2는 30초 무수신이면 auto 복귀 → OFF 재발행
+      if (r.action === "off") {
+        const m = heatModeOf(b2); if (m && m !== "off") { preHot = m; store.set(KEY_PREHOT, m); } // 복귀 때 ECO 유지
+        notify("hot_on", HOT_MSG_OFF); sendHeater("off", true); lastHoldSend = now;
+      } else if (r.action === "auto") { notify("hot_off", HOT_MSG_AUTO); sendHeater(restoreMode(preHot), true); }
+      else if (hotSt?.active && now - lastHoldSend >= HOLD_RESEND_MS) { // 구 3보드 #2는 30초 무수신이면 auto 복귀 → OFF 재발행(firmware2는 off 유지, 재발행 무해)
         lastHoldSend = now;
         client.publish(T.cmd, JSON.stringify({ target: "b2", heater: "off" }), { qos: 1 });
       }
@@ -394,11 +437,17 @@ function onMessage(topic, buf) {
   render();
 }
 
-// 게이트웨이 형식 그대로(문자열 검색 파서라 다른 필드를 섞지 않는다): {"target":"b2","heater":"off|auto"}. 강제 ON은 보내지 않음.
+// off·auto는 구 게이트웨이도 받는 {"target":"b2","heater":..}, 목표온도는 firmware2 set_target(30~40). ECO = 목표 30℃ + auto.
+// 명령마다 id → firmware2가 oink/gateway/cmd/ack로 답한다. 강제 ON은 보내지 않음.
+let cmdSeq = 0;
+const mkId = () => `app-${Date.now().toString(36)}-${cmdSeq++}`;
 function sendHeater(want, auto = false) {
-  if (!client?.connected || (want !== "off" && want !== "auto")) return;
-  client.publish(T.cmd, JSON.stringify({ target: "b2", heater: want }), { qos: 1 });
-  pendingHeat = { want, sentAt: Date.now(), auto };
+  if (!client?.connected) return;
+  const cmds = heaterCmds(want, mkId);
+  if (!cmds.length) return;
+  for (const c of cmds) client.publish(T.cmd, JSON.stringify(c), { qos: 1 });
+  pendingHeat = { want, ids: cmds.map((c) => c.id), acks: 0, sentAt: Date.now(), auto };
+  if (!auto && want !== "off") { preHot = want; store.set(KEY_PREHOT, want); }
   render();
 }
 
@@ -432,6 +481,8 @@ $("homeFeed").addEventListener("click", onFeed);
 
 $("offBtn").addEventListener("click", () => sendHeater("off"));
 $("autoBtn").addEventListener("click", () => sendHeater("auto"));
+$("ecoBtn").addEventListener("click", () => sendHeater("eco"));
+$("ecoToggle").addEventListener("click", () => sendHeater(heatModeOf(gw.tele?.board2) === "eco" ? "auto" : "eco"));
 
 function showLogin(err) {
   $("app").hidden = true; $("login").hidden = false;
@@ -462,7 +513,7 @@ function oinkConnect(url, username, password, auto = false) {
       else store.del(KEY_LOGIN);
       $("login").hidden = true; $("app").hidden = false; $("pass").value = DEFAULT_PASS;
     }
-    c.subscribe([T.status, T.tele, T.feed], { qos: 1 });
+    c.subscribe([T.status, T.tele, T.feed, T.ack], { qos: 1 });
     render();
   });
   c.on("message", onMessage);

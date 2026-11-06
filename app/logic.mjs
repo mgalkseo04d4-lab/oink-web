@@ -212,3 +212,24 @@ export function addEvents(list, evs) {
 export function recent(hist, now, windowMs) {
   return hist.filter((p) => now - p.t <= windowMs);
 }
+
+// ---- 히터 모드(firmware2: mode auto|off + target_c, eco 모드 없음 → ECO = auto + 목표 30℃) ----
+export const AUTO_TARGET = 37; // firmware2 TARGET_C_DEFAULT
+export const ECO_TARGET = 30;  // firmware2 TARGET_C_MIN (set_target 30~40만 받음)
+// 반환: "off" | "eco" | "auto" | 그 밖의 mode 문자열 | null. target_c가 없는 구 3보드 펌웨어는 ECO 판정 안 함
+export function heatModeOf(b2) {
+  if (!b2) return null;
+  if (b2.mode === "off") return "off";
+  if (b2.mode === "auto") return Number.isFinite(b2.target_c) && b2.target_c <= ECO_TARGET + 0.5 ? "eco" : "auto";
+  return b2.mode ?? null;
+}
+// 보낼 명령 목록(순서대로). firmware2는 문자열 검색 파서라 한 메시지에 한 명령만 넣는다.
+// heater:"off|auto"는 구 게이트웨이도 받는 형식, set_target은 firmware2만(구 게이트웨이는 무시).
+export function heaterCmds(want, mkId) {
+  if (want === "off") return [{ id: mkId(), target: "b2", heater: "off" }];
+  if (want !== "auto" && want !== "eco") return [];
+  return [{ id: mkId(), cmd: "set_target", target_c: want === "eco" ? ECO_TARGET : AUTO_TARGET },
+    { id: mkId(), target: "b2", heater: "auto" }];
+}
+// 뜨거운 음식물 OFF 유지가 끝난 뒤 돌아갈 모드: 감지 직전이 ECO였으면 ECO, 아니면 자동
+export function restoreMode(pre) { return pre === "eco" ? "eco" : "auto"; }
