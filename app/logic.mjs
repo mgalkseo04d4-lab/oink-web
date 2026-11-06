@@ -233,3 +233,42 @@ export function heaterCmds(want, mkId) {
 }
 // 뜨거운 음식물 OFF 유지가 끝난 뒤 돌아갈 모드: 감지 직전이 ECO였으면 ECO, 아니면 자동
 export function restoreMode(pre) { return pre === "eco" ? "eco" : "auto"; }
+
+// ---- Supabase(DB) 기록: 판정은 DB 트리거가 한다. 앱은 flags만 읽는다(1106본대회/DB/data_quality.md) ----
+const BREAK_FLAGS = ["stream:gap", "board1:missing", "co2_ppm:missing", "co2_ppm:warming"];
+// DB telemetry 행 → CO₂ 점. v=null은 선 끊김(결측·끊김 구간, 보간 안 함). flagged=플래그 있는 점(회색 속빈 원)
+export function dbCo2Points(rows, gapMs = 30000) { // 정상 2초 주기. 10초 초과 빈틈은 DB가 stream:gap으로 표시하고, 여기선 행이 빠진 30초 초과 빈틈도 끊는다
+  const out = [];
+  let prevT = null;
+  const sorted = (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, t: Date.parse(r.received_at) }))
+    .filter((r) => Number.isFinite(r.t)).sort((a, b) => a.t - b.t);
+  for (const r of sorted) {
+    const fl = Array.isArray(r.flags) ? r.flags : [];
+    const ok = r.co2_status === 1 && Number.isFinite(r.co2_ppm);
+    if (prevT != null && r.t - prevT > gapMs && out.length && out[out.length - 1].v != null) out.push({ t: r.t - 1, v: null });
+    if (!ok || fl.some((f) => BREAK_FLAGS.includes(f))) { if (out.length && out[out.length - 1].v != null) out.push({ t: r.t, v: null }); }
+    else out.push({ t: r.t, v: r.co2_ppm, flagged: fl.some((f) => f.startsWith("co2_ppm:")) });
+    prevT = r.t;
+  }
+  return out;
+}
+// 이 기기 기록(local {t,ppm}) + DB 점. DB가 덮는 시간 범위 안의 local 점은 버린다(DB 우선)
+export function mergeCo2(local, db) {
+  const d = db.filter((p) => Number.isFinite(p.t));
+  if (!d.length) return local.map((p) => ({ t: p.t, v: p.ppm }));
+  const lo = d[0].t, hi = d[d.length - 1].t;
+  const rest = local.filter((p) => p.t < lo || p.t > hi).map((p) => ({ t: p.t, v: p.ppm }));
+  return [...rest, ...d].sort((a, b) => a.t - b.t);
+}
+// 최근 투입 시각: MQTT retained 기록과 DB feed_log 중 더 최근
+export function pickFeedTs(mqttTs, dbTs) {
+  const a = Number.isFinite(mqttTs) ? mqttTs : null, b = Number.isFinite(dbTs) ? dbTs : null;
+  return a == null ? b : b == null ? a : Math.max(a, b);
+}
+// 최신 DB 행 flags → 카드 배지. 온도 급변(spike)은 투입·시연 때 정상이라 배지 없음
+export function dqBadge(flags) {
+  const fl = Array.isArray(flags) ? flags : [];
+  if (fl.includes("board1:missing") || fl.includes("stream:gap")) return "수신 끊김";
+  if (fl.includes("co2_ppm:warming")) return "예열 중";
+  return "";
+}

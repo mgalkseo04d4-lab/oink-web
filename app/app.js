@@ -1,7 +1,7 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, HOT_MSG_OFF, HOT_MSG_AUTO, autoRange, CO2_MAX, HOLD_RESEND_MS,
-  heatModeOf, heaterCmds, restoreMode } from "./logic.mjs";
+  heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge } from "./logic.mjs";
 
 const T = {
   status: "oink/gateway/status",
@@ -27,6 +27,14 @@ const KEY_DEMO = "oink.app.demo";
 const KEY_PREHOT = "oink.app.prehot"; // 뜨거운 음식물 감지 직전 히터 모드(복귀 때 ECO 유지용)
 const KEY_HOT = "oink.app.hot";      // 뜨거운 음식물 감지 상태(앱을 다시 열어도 복귀 판단 이어짐)
 const BROKER = "wss://o9f10aca.ala.asia-southeast1.emqxsl.com:8084/mqtt"; // 주소 고정(로그인 화면에 칸 없음)
+// Supabase(PostgREST 직접 fetch). 공개(publishable) 키 = anon 권한: 읽기 + feed_log INSERT만(RLS). 비밀값·service_role은 앱에 두지 않는다
+const SB_URL = "https://vjidekvsgernbqdhimnu.supabase.co";
+const SB_KEY = "sb_publishable_Bx2zv4eXkfk5huXQVFSS0w_ZxpFOsC9";
+const SB_H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+const sbGet = (q) => fetch(`${SB_URL}/rest/v1/${q}`, { headers: SB_H, cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))));
+const sbInsert = (table, row) => fetch(`${SB_URL}/rest/v1/${table}`, {
+  method: "POST", headers: { ...SB_H, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify(row),
+}).then((r) => { if (!r.ok) throw new Error(r.status); });
 const store = {
   get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* 저장 불가여도 동작 */ } },
@@ -59,6 +67,42 @@ try { const a = JSON.parse(store.get(KEY_EV) || "[]"); if (Array.isArray(a)) eve
 let evSeen = Number(store.get(KEY_EV_SEEN)) || 0;
 let prevState = null;
 let curTab = "home";
+let dbFeedTs = null;   // DB feed_log 최신 fed_at
+let dbPts = [];        // DB telemetry CO₂ 점(v=null = 끊김)
+let dbLast = null;     // { t, flags } 최신 DB 행
+let dbOk = null;       // DB 조회 성공 여부(null = 확인 전)
+let dbFetchAt = 0;
+const lastFeedTs = () => pickFeedTs(feedLog[feedLog.length - 1]?.ts, dbFeedTs);
+// DB 실측 = 다른 폰에서 열어도 실측선이 보이게.
+// shortcut: 최신 2000행(2초 주기 ≈ 67분)만 받는다 — 그보다 오래된 구간은 이 기기 localStorage 기록으로 채움. 며칠치가 필요하면 DB에 분 단위 다운샘플 뷰를 만들어 그걸 읽을 것
+async function loadDb(force = false) {
+  const now = Date.now();
+  if (!force && now - dbFetchAt < 20000) return;
+  dbFetchAt = now;
+  try {
+    const [f] = await sbGet("feed_log?select=fed_at&order=fed_at.desc&limit=1");
+    dbFeedTs = f ? Date.parse(f.fed_at) : null;
+    const feedTs = lastFeedTs();
+    const since = new Date(Math.max(feedTs || 0, now - 7 * 24 * 3600 * 1000)).toISOString();
+    const rows = await sbGet(`telemetry?select=received_at,co2_ppm,co2_status,flags&received_at=gte.${encodeURIComponent(since)}&order=received_at.desc&limit=2000`);
+    dbPts = dbCo2Points(rows);
+    if (rows[0]) dbLast = { t: Date.parse(rows[0].received_at), flags: rows[0].flags };
+    if (feedTs && co2Base?.feedTs !== feedTs) { // 이 기기에 기준값이 없으면 DB의 투입 직후 첫 유효값
+      const first = dbPts.find((p) => p.t >= feedTs && p.v != null);
+      if (first) { co2Base = { feedTs, base: first.v }; store.set(KEY_BASE, JSON.stringify(co2Base)); }
+    }
+    dbOk = true;
+  } catch { dbOk = false; }
+  render();
+}
+async function pollDbStatus() {
+  try {
+    const [top] = await sbGet("telemetry?select=received_at,flags&order=received_at.desc&limit=1");
+    dbLast = top ? { t: Date.parse(top.received_at), flags: top.flags } : null; dbOk = true;
+  } catch { dbOk = false; }
+  render();
+}
+const co2All = () => mergeCo2(co2Hist, dbPts);
 
 for (const el of document.querySelectorAll(".b1src")) { el.textContent = B1_SRC; el.classList.toggle("real", !FAKE_B1); el.classList.toggle("test", FAKE_B1); }
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -84,6 +128,7 @@ function showTab(name) {
   for (const p of document.querySelectorAll("#app > .tab")) p.hidden = p.id !== `tab-${name}`;
   document.querySelector(".topbar").hidden = name === "log"; // 분석 화면은 자체 제목(목업)
   for (const b of document.querySelectorAll(".tabbar [role=tab]")) b.setAttribute("aria-selected", String(b.dataset.tab === (name === "live" ? "home" : name)));
+  if (name === "log") loadDb();
   if (name === "alert") { evSeen = events.length ? events[events.length - 1].ts : evSeen; store.set(KEY_EV_SEEN, String(evSeen)); }
   render();
   scrollTo(0, 0);
@@ -103,10 +148,11 @@ function predGraph(svg, feedTs, now) {
   if (co2Base?.feedTs !== feedTs) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="sp-empty">투입 후 첫 CO₂ 값을 기다리는 중이에요</text>`; return; }
   const base = co2Base.base, sp = speed();
   const span = predSpanH;
-  const real = co2Hist.filter((p) => p.t >= feedTs).map((p) => ({ h: curveH(feedTs, p.t, sp), v: p.ppm })).filter((p) => p.h <= span);
+  const real = co2All().filter((p) => p.t >= feedTs).map((p) => ({ h: curveH(feedTs, p.t, sp), v: p.v, flagged: p.flagged })).filter((p) => p.h <= span);
+  const realV = real.filter((p) => p.v != null);
   let peak = 0;
   for (let h = 0; h <= span; h += span / 60) peak = Math.max(peak, rate(h));
-  const r = autoRange([base, Math.min(CO2_MAX, base + amp * peak * 1.2), ...real.map((p) => p.v)], 40, CO2_MAX);
+  const r = autoRange([base, Math.min(CO2_MAX, base + amp * peak * 1.2), ...realV.map((p) => p.v)], 40, CO2_MAX);
   const x = (h) => L + (h / span) * (W - L - R);
   const y = (v) => Tp + (1 - (v - r.min) / (r.max - r.min)) * (H - Tp - B);
   let g = "";
@@ -126,9 +172,14 @@ function predGraph(svg, feedTs, now) {
   g += `<polyline points="${pts.join(" ")}" class="sp-pred"/>`;
   const hn = curveH(feedTs, now, sp);
   if (hn <= span) g += `<line x1="${x(hn)}" x2="${x(hn)}" y1="${Tp}" y2="${H - B}" class="sp-now"/>`;
-  if (real.length) {
-    g += `<polyline points="${real.map((p) => `${x(p.h).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")}" class="sp-real"/>`;
-    const l = real[real.length - 1];
+  if (realV.length) {
+    // v=null에서 선을 끊는다(결측·끊김 구간 보간 안 함). 플래그 점은 회색 속빈 원
+    let seg = [];
+    const flush = () => { if (seg.length) g += `<polyline points="${seg.join(" ")}" class="sp-real"/>`; seg = []; };
+    for (const p of real) { if (p.v == null) flush(); else seg.push(`${x(p.h).toFixed(1)},${y(p.v).toFixed(1)}`); }
+    flush();
+    for (const p of realV) if (p.flagged) g += `<circle cx="${x(p.h).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" class="sp-flag"/>`;
+    const l = realV[realV.length - 1];
     g += `<circle cx="${x(l.h)}" cy="${y(l.v)}" r="4" fill="var(--primary)"/>`;
     g += `<text x="${Math.min(x(l.h) + 6, W - R - 30)}" y="${y(l.v) + 16}" class="sp-lbl" fill="var(--primary)">${B1_SRC} ${Math.round(l.v)}</text>`;
   }
@@ -235,15 +286,14 @@ function render() {
   $("cTemp").classList.toggle("hot", hs.reasons.includes("hot"));
   $("vOdor").textContent = Number.isFinite(b1?.odor_index) ? Math.round(b1.odor_index) : "—";
 
-  const last = feedLog[feedLog.length - 1];
-  const feedTs = last?.ts;
+  const feedTs = lastFeedTs();
   const p = decompProgress(feedTs, now, speed());
   const st = decompStage(feedTs, now, speed());
   $("progBar").style.width = p == null ? "0" : `${Math.round(p * 100)}%`;
   $("progText").textContent = p == null ? "음식물을 넣으면 보여요" : `약 ${Math.round(p * 100)}% · ${st.text}`;
   $("progTrend").textContent = p == null ? "" : co2TrendText(co2Slope(co2Hist, now));
   const act = feedTs && co2Base?.feedTs === feedTs
-    ? activity({ pts: co2Hist.map((q) => ({ t: q.t, v: q.ppm })), now, feedTs, base: co2Base.base, amp, speed: speed() }) : null;
+    ? activity({ pts: co2All().filter((q) => q.v != null), now, feedTs, base: co2Base.base, amp, speed: speed() }) : null;
   const actLine = !feedTs ? "" : !act ? "분해 활성도: 측정 대기" : act.pct == null ? `분해 활성도: ${act.text}` : `분해 활성도 ${act.pct}% · ${act.text}`;
   $("progAct").textContent = actLine;
   $("vAct").textContent = act?.pct != null ? `${act.pct}%` : "—";
@@ -290,6 +340,14 @@ function render() {
       pendingHeat = null;
     } else $("cmdMsg").textContent = pendingHeat.acks ? `📨 ${who}기기가 받았어요 · 반영 중…` : `📤 ${who}${name} 보내는 중…`;
   }
+
+  // DB 품질 배지(최신 DB 행 flags, 2분 이내일 때만) + 저장 상태
+  const dq = dbLast && now - dbLast.t < 120000 ? dqBadge(dbLast.flags) : "";
+  $("dqCo2").hidden = !dq; $("dqCo2").textContent = dq;
+  const dqT = dq === "수신 끊김" ? dq : ""; // 예열은 CO₂만 해당
+  $("dqTemp").hidden = !dqT; $("dqTemp").textContent = dqT;
+  $("dbStat").textContent = dbOk == null ? "데이터 저장: 확인 중…" : !dbOk ? "데이터 저장: DB 연결 안 됨"
+    : !dbLast ? "데이터 저장: DB 연결됨 (저장된 기록 없음)" : `데이터 저장: DB 연결됨 (마지막 저장 ${now - dbLast.t < 120000 ? `${Math.max(0, Math.round((now - dbLast.t) / 1000))}초 전` : ago(now - dbLast.t)})`;
 
   // 알림 배지
   const unread = events.filter((e) => e.ts > evSeen).length;
@@ -415,7 +473,7 @@ function onMessage(topic, buf) {
     if (Number.isFinite(b1?.temp1_c)) tempHist = keep([...tempHist, { t: now, c: b1.temp1_c }]).filter((p) => now - p.t <= 10 * 60000);
     const b2 = msg.board2;
     if (Number.isFinite(b2?.temp2_c)) temp2Hist = [...temp2Hist, { t: now, c: b2.temp2_c }].filter((p) => now - p.t <= 5 * 60000);
-    const feedTs = feedLog[feedLog.length - 1]?.ts;
+    const feedTs = lastFeedTs();
     if (feedTs && co2Base?.feedTs !== feedTs) { // 투입 직후 첫 유효값을 기준으로
       const first = co2Hist.find((p) => p.t >= feedTs);
       if (first) { co2Base = { feedTs, base: first.ppm }; store.set(KEY_BASE, JSON.stringify(co2Base)); }
@@ -458,6 +516,11 @@ const onFeed = (e) => {
   if (!size || !client?.connected) return;
   feedLog = addFeed(feedLog, { ts: Date.now(), size, from: devName() });
   client.publish(T.feed, JSON.stringify(feedLog), { qos: 1, retain: true });
+  // DB에도 저장(실패해도 앱 기록은 유지 — 알림 탭에만 한 줄)
+  sbInsert("feed_log", { size, created_by: devName().slice(0, 50) }).catch(() => {
+    events = addEvents(events, [{ ts: Date.now(), kind: "db_fail", text: "DB 저장 실패 — 투입 기록은 앱에 남았어요" }]);
+    store.set(KEY_EV, JSON.stringify(events)); render();
+  });
   $("feedMsg").textContent = $("homeFeedMsg").textContent = `기록했어요 (${size}) — 지금부터 예측 곡선 시작`;
   render();
 };
@@ -542,6 +605,8 @@ try {
   if (saved?.username) oinkConnect(BROKER, saved.username, saved.password, true);
 } catch { store.del(KEY_LOGIN); }
 setInterval(() => { if (!$("app").hidden) render(); }, 2000);
+loadDb(true);
+setInterval(pollDbStatus, 60000);
 // 시작 화면(시연용, 로그인 유지여도 매번): 탭하면 앱. 자동 넘김 없음
 {
   const sp = $("splash");

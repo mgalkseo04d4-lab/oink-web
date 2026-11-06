@@ -122,8 +122,8 @@
         </article>
 
         <div class="grid2">
-          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
-          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span></p></article>
+          <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-live="co2" aria-label="CO₂ 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> <span class="src dq" id="dqCo2" hidden></span></p></article>
+          <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-live="t1" aria-label="심부 온도 실시간 그래프 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real b1src">실측</span> <span class="src dq" id="dqTemp" hidden></span></p></article>
           <article class="card stat tap" id="cAct" role="button" tabindex="0" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-bars"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
           <article class="card stat" id="cFeed"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>최근 투입</p><p class="big"><span id="vFeed">—</span></p><p id="nFeed" class="num"></p><p class="num tiny">투입 기록</p></article>
         </div>
@@ -206,6 +206,7 @@
         <article class="card">
           <p class="kicker">이 기기 이름</p>
           <input id="devName" class="name" maxlength="12" aria-label="이 기기 이름">
+          <p id="dbStat" class="muted tiny">데이터 저장: 확인 중…</p>
         </article>
         <article class="card">
           <div class="card-head"><p class="kicker">히터 조절</p><span id="heatBadge" class="badge">—</span></div>

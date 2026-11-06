@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
   homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
-  heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET } from "./logic.mjs";
+  heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -137,4 +137,32 @@ assert.ok(heaterCmds("eco", mkId).every((c) => Object.keys(c).filter((k) => k ==
 assert.equal(restoreMode("eco"), "eco");
 assert.equal(restoreMode("auto"), "auto");
 assert.equal(restoreMode(null), "auto");
+// DB 기록(flags만 사용, 보간 없음)
+const iso = (ms) => new Date(ms).toISOString();
+const rows = [
+  { received_at: iso(now), co2_ppm: 600, co2_status: 1, flags: [] },
+  { received_at: iso(now + 2000), co2_ppm: 610, co2_status: 1, flags: ["co2_ppm:spike"] },
+  { received_at: iso(now + 4000), co2_ppm: null, co2_status: 0, flags: ["co2_ppm:warming"] },
+  { received_at: iso(now + 6000), co2_ppm: 620, co2_status: 1, flags: [] },
+  { received_at: iso(now + 30000), co2_ppm: 630, co2_status: 1, flags: ["stream:gap"] },
+  { received_at: iso(now + 32000), co2_ppm: 640, co2_status: 1, flags: [] },
+];
+const dp = dbCo2Points(rows);
+assert.deepEqual(dp.map((p) => p.v), [600, 610, null, 620, null, 640]); // 예열·gap에서 선 끊김, 값 지어내지 않음
+assert.equal(dp[1].flagged, true);
+assert.equal(dp[0].flagged, false);
+assert.deepEqual(dbCo2Points([]), []);
+assert.deepEqual(dbCo2Points([{ received_at: iso(now), co2_ppm: 600, co2_status: 1, flags: [] }, { received_at: iso(now + 60000), co2_ppm: 700, co2_status: 1, flags: [] }]).map((p) => p.v), [600, null, 700]); // 10초 넘는 빈틈
+const mg = mergeCo2([{ t: now - 5000, ppm: 590 }, { t: now + 2000, ppm: 999 }], dp);
+assert.equal(mg[0].v, 590);                     // DB 범위 밖 local 점 유지
+assert.ok(!mg.some((p) => p.v === 999));         // DB 범위 안 local 점은 DB 우선
+assert.deepEqual(mergeCo2([{ t: 1, ppm: 5 }], []), [{ t: 1, v: 5 }]);
+assert.equal(pickFeedTs(100, 200), 200);
+assert.equal(pickFeedTs(300, null), 300);
+assert.equal(pickFeedTs(undefined, NaN), null);
+assert.equal(dqBadge(["co2_ppm:warming"]), "예열 중");
+assert.equal(dqBadge(["board1:missing"]), "수신 끊김");
+assert.equal(dqBadge(["stream:gap", "co2_ppm:warming"]), "수신 끊김");
+assert.equal(dqBadge(["temp1_c:spike"]), "");    // 온도 급변은 경고 안 함
+assert.equal(dqBadge(null), "");
 console.log("selfcheck ok");
