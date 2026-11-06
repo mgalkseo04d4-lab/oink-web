@@ -4,7 +4,8 @@ import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odo
   homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
-  db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, tempCardValue, odorCard, hotHeaterGuard, latchStatus } from "./logic.mjs";
+  db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, co2Valid, tempCardValue, odorCard, hotHeaterGuard, latchStatus,
+  latchResetCmd, latchResetText, FAULT_WORD, LATCH_RESET_ASK, tempBand, co2Arrow, CO2_TREND_MIN, dbTempPoints } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -18,9 +19,9 @@ assert.equal(mood({ ...live, online: false, b1: { co2_status: 1 }, slope: 5 }), 
 assert.equal(mood({ ...live, lastSeen: now - STALE_MS - 1, b1: { co2_status: 1 }, slope: 5 }), "sleep");
 assert.equal(mood({ ...live, b1: null, slope: 5 }), "sleep");
 assert.equal(mood({ ...live, b1: { co2_status: 1, odor_index: 2.3 }, slope: 5 }), "smelly");
-assert.equal(mood({ ...live, b1: { co2_status: 1, odor_index: 1.1 }, slope: 5 }), "busy");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 600, odor_index: 1.1 }, slope: 5 }), "busy");
 assert.equal(mood({ ...live, b1: { co2_status: 0, odor_index: 1.1 }, slope: 5 }), "calm");
-assert.equal(mood({ ...live, b1: { co2_status: 1, odor_index: 1.1 }, slope: -3 }), "calm");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 600, odor_index: 1.1 }, slope: -3 }), "calm");
 
 // 분해 진행(논문 경향 곡선: 정점 72h, 7일 누적=100%)
 const H = 3600 * 1000, f0 = now;
@@ -52,7 +53,8 @@ assert.equal(homeState({ ...L, online: false, b1: { temp1_c: 30 } }).state, "sle
 assert.equal(homeState({ ...L, b1: { temp1_c: 32, co2_status: 1, co2_ppm: 400 } }).state, "calm");
 assert.deepEqual(homeState({ ...L, b1: { temp1_c: TEMP_ALERT, co2_status: 1, co2_ppm: 400 } }).reasons, ["hot"]);
 assert.deepEqual(homeState({ ...L, b1: { temp1_c: 30, co2_status: 1, co2_ppm: CO2_ALERT } }).reasons, ["co2"]);
-assert.equal(homeState({ ...L, b1: { temp1_c: 30, co2_status: 0, co2_ppm: 1600 } }).state, "calm"); // 예열 중 CO₂는 무시
+assert.deepEqual(homeState({ ...L, b1: { temp1_c: 30, co2_status: 0, co2_ppm: 1600 } }).reasons, ["co2"]); // 예열(0)도 실측값
+assert.equal(homeState({ ...L, b1: { temp1_c: 30, co2_status: 2, co2_ppm: 1600 } }).state, "calm"); // 센서 오류(2)는 무시
 assert.equal(homeText(homeState({ ...L, b1: { temp1_c: 45, co2_status: 1, co2_ppm: 1600 } })), "너무 덥고 숨이 막혀요!");
 const calm = { state: "calm", reasons: [], gwOnline: true }, alert = { state: "alert", reasons: ["hot"], gwOnline: true };
 assert.equal(stateEvents(null, calm, 1).length, 0);
@@ -213,7 +215,17 @@ assert.equal(srcBadge(co2CardValue(null), "실측"), "");
 assert.equal(srcBadge(tempCardValue(null), "실측"), "");
 assert.equal(ctrlTargetOf({ ctrl_src: "local", target_c: 30 }), 40);
 // CO₂ 센서 준비 중·온도 결측도 같은 규칙, 값이 있으면 표시(0도 값)
-assert.equal(srcBadge(co2CardValue({ co2_status: 0, co2_ppm: 640 }), "실측"), "");
+assert.equal(srcBadge(co2CardValue({ co2_status: 0, co2_ppm: 640 }), "실측"), "실측"); // 예열(0)도 값 표시
+// CO₂ 상태 0 + ppm 800 → 값 표시 + 예열 표시, 2·3·null·음수는 무효
+assert.equal(co2CardValue({ co2_status: 0, co2_ppm: 800 }), 800);
+assert.equal(co2Warm({ co2_status: 0, co2_ppm: 800 }), true);
+assert.equal(co2Warm({ co2_status: 1, co2_ppm: 800 }), false);
+assert.equal(co2CardValue({ co2_status: 0x40, co2_ppm: 800 }), 800);
+assert.equal(co2CardValue({ co2_status: 2, co2_ppm: 800 }), null);
+assert.equal(co2CardValue({ co2_status: 3, co2_ppm: 800 }), null);
+assert.equal(co2CardValue({ co2_status: 0, co2_ppm: null }), null);
+assert.equal(co2Valid({ co2_status: 1, co2_ppm: -1 }), false);
+assert.deepEqual(dbCo2Points([{ received_at: new Date(now).toISOString(), co2_ppm: 800, co2_status: 0, flags: [] }]).map((p) => p.v), [800]);
 assert.equal(srcBadge(tempCardValue({ temp1_c: null }), "실측"), "");
 assert.equal(srcBadge(co2CardValue({ co2_status: 1, co2_ppm: 640 }), "실측"), "실측");
 assert.equal(srcBadge(tempCardValue({ temp1_c: 0 }), "시험값"), "시험값");
@@ -245,11 +257,27 @@ assert.equal(hotHeaterGuard({ st: hotEnd, action: "auto" }, { mode: "auto" }, tr
 assert.equal(hotHeaterGuard({ st: hotA, action: null }, null, true).st.latchSeen, undefined);
 // hotFoodStep과 연결: 종료 시 latchSeen 유지
 assert.equal(hotFoodStep(hotSeen, { series: { t1: [] }, co2s: [], now: 2, cur: { t1: 30 } }).st.latchSeen, true);
+// 과열 차단 해제(latch_reset): 명령 형식, ack 문구. '히터 끄기'는 해제 수단이 아님
+assert.deepEqual(latchResetCmd(() => "r1"), { id: "r1", cmd: "latch_reset" });
+assert.match(latchResetText({ ok: true }), /풀었어요.*'자동'/);
+assert.equal(latchResetText({ ok: false, msg: "too hot: heater 45.2C (need <38C)" }), "아직 뜨거워요 (지금 45.2℃) — 충분히 식힌 뒤 다시 눌러 주세요");
+assert.match(latchResetText({ ok: false, msg: "too hot: core 39.0C (need <38C)" }), /아직 뜨거워요 \(지금 39\.0℃\)/);
+assert.match(latchResetText({ ok: false, msg: "not latched" }), /이미/);
+assert.match(latchResetText({ ok: false, msg: "sensor error: heater surface temp unknown" }), /확인할 수 없어/);
+assert.match(latchResetText({ ok: false, msg: "wait: core readings not stable yet" }), /잠시 뒤/);
+assert.match(latchResetText({ ok: false }), /풀지 못했어요/);
+for (const k of ["overheat", "no_rise"]) { assert.match(FAULT_WORD[k], /과열 차단 해제/); assert.doesNotMatch(FAULT_WORD[k], /히터 끄기/); }
+assert.match(LATCH_RESET_ASK, /'자동'/);
 // 냄새 지수 카드: 비율 소수 1자리, null = 교정 전, 연결 없음 = 표시 없음, 예열 비트
 assert.deepEqual(odorCard(null), { text: "—", badge: "", warm: false });
 assert.deepEqual(odorCard({ odor_index: null, err: 0 }), { text: "—", badge: "교정 전", warm: false });
 assert.deepEqual(odorCard({ odor_index: null, err: 4 }), { text: "—", badge: "교정 전", warm: true });
 assert.deepEqual(odorCard({ odor_index: 1.27, err: 1 }), { text: "1.3", badge: "실측", warm: false });
+// 지수 없으면 gas_v 전압 + 실측, 지수가 있으면 지수 우선, gas_v도 없으면 기존 빈 표시
+assert.deepEqual(odorCard({ odor_index: null, gas_v: 3.14, err: 0 }), { text: "3.14 V", badge: "실측", warm: false });
+assert.deepEqual(odorCard({ gas_v: 0, err: 4 }), { text: "0.00 V", badge: "실측", warm: true });
+assert.deepEqual(odorCard({ odor_index: 1.27, gas_v: 3.14, err: 0 }), { text: "1.3", badge: "실측", warm: false });
+assert.deepEqual(odorCard({ odor_index: null, gas_v: null, err: 0 }), { text: "—", badge: "교정 전", warm: false });
 for (const v of [null, undefined, NaN, "1.1"]) assert.equal(odorWord({ odor_index: v }), "확인 중");
 // 효과음: 첫 입력 전·끄기 상태에는 AudioContext를 만들지 않고, 소리 실패가 밖으로 새지 않음
 let acMade = 0, arm;
@@ -268,4 +296,21 @@ for (const p of snd.BOING_PITCHES) {
   assert.ok(snd.BOING.dur / p >= 0.2 && snd.BOING.dur / p <= 0.3);
 }
 for (let i = 0, p = null; i < 200; i++) { const k = snd.nextPitch(p); assert.ok(snd.BOING_PITCHES.includes(k)); assert.notEqual(k, p); p = k; }
+// 홈 온도 배지 구간: 30~40 정상, 40 초과~45 미만 주의, 45 이상 과열(TEMP_ALERT와 같은 경계), 값 없음 = 배지 없음
+assert.equal(tempBand(null), null); assert.equal(tempBand(NaN), null);
+assert.equal(tempBand(29.9).key, "low"); assert.equal(tempBand(30).key, "ok"); assert.equal(tempBand(36.5).key, "ok"); assert.equal(tempBand(40).key, "ok");
+assert.equal(tempBand(40.1).key, "warn"); assert.equal(tempBand(44.9).key, "warn"); assert.equal(tempBand(TEMP_ALERT).key, "hot"); assert.equal(tempBand(52).text, "과열");
+// 홈 CO₂ 추세 화살표: 잡음 수준 기울기는 →, 이력 부족(null)은 표시 없음
+assert.equal(co2Arrow(null), ""); assert.equal(co2Arrow(0), "→"); assert.equal(co2Arrow(CO2_TREND_MIN - 0.1), "→"); assert.equal(co2Arrow(-(CO2_TREND_MIN - 0.1)), "→");
+assert.equal(co2Arrow(co2Slope(rising, now)), "↑"); assert.equal(co2Arrow(co2Slope(falling, now)), "↓");
+const noisy = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => ({ t: now - (9 - i) * 30000, ppm: 600 + (i % 2 ? 25 : -25) })); // ±25ppm 흔들림
+assert.equal(co2Arrow(co2Slope(noisy, now)), "→");
+// DB 심부 온도 점: 시간순, 결측·오류·#1 끊김 행 제외, spike는 유지
+assert.deepEqual(dbTempPoints([
+  { received_at: "2026-11-06T00:00:04Z", temp1_c: 36.1, flags: ["temp1_c:spike"] },
+  { received_at: "2026-11-06T00:00:00Z", temp1_c: 35.9, flags: [] },
+  { received_at: "2026-11-06T00:00:02Z", temp1_c: 85, flags: ["temp1_c:sensor_error"] },
+  { received_at: "2026-11-06T00:00:06Z", temp1_c: null, flags: ["board1:missing"] },
+]), [{ t: Date.parse("2026-11-06T00:00:00Z"), v: 35.9 }, { t: Date.parse("2026-11-06T00:00:04Z"), v: 36.1 }]);
+assert.deepEqual(dbTempPoints(null), []);
 console.log("selfcheck ok");

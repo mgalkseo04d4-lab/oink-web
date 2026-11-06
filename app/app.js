@@ -3,7 +3,8 @@ import { play, soundOn, setSoundOn } from "./sound.js";
 import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
-  DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, tempCardValue, odorCard, LOCAL_TARGET_C } from "./logic.mjs";
+  DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, tempCardValue, odorCard, LOCAL_TARGET_C,
+  latchResetCmd, latchResetText, LATCH_RESET_ASK, LATCH_RESET_NOACK, tempBand, co2Arrow, dbTempPoints, odorWord } from "./logic.mjs";
 
 const T = {
   status: "oink/gateway/status",
@@ -50,15 +51,14 @@ let gw = { online: false, tele: null, lastSeen: 0 };
 const loadJson = (k, d) => { try { const v = JSON.parse(store.get(k) || "null"); return v ?? d; } catch { return d; } };
 let co2Hist = loadJson(KEY_CO2, []).filter((p) => Number.isFinite(p?.t) && Number.isFinite(p?.ppm));
 let tempHist = [];
-let liveMs = 120000; // 실시간 그래프 창: 2분(#1 5초 주기 → 점 24개), 60초 전환
 let lastHoldSend = 0;
 let co2Base = loadJson(KEY_BASE, null);
 let amp = Number(store.get(KEY_AMP)) || AMP_DEFAULT;
 let demo = store.get(KEY_DEMO) === "1";
 let hotSt = loadJson(KEY_HOT, null);
-let liveKey = "co2", liveBase = null;
 let predSpanH = 24; // 분석 화면 x축: 하루(24h) / 일주일(DECOMP_END_H)
 let pendingHeat = null; // { want, ids, acks, sentAt, auto }
+let pendingReset = null; // 과열 차단 해제 { id, timer }
 let preHot = store.get(KEY_PREHOT) || null;
 const MODE_NAME = { off: "히터 끄기", auto: "자동 모드", eco: "🌱 에코 절전" };
 let toastTimer = null;
@@ -74,6 +74,7 @@ let prevState = null;
 let curTab = "home";
 let dbFeedTs = null;   // DB feed_log 최신 fed_at
 let dbPts = [];        // DB telemetry CO₂ 점(v=null = 끊김)
+let dbTemp = [];       // DB 최근 2시간 심부 온도 점(홈 통합 추이)
 let dbLast = null;     // { t, flags } 최신 DB 행
 let dbOk = null;       // DB 조회 성공 여부(null = 확인 전)
 let dbFetchAt = 0;
@@ -91,7 +92,7 @@ async function loadDb(force = false) {
     const feedTs = lastFeedTs();
     const since = new Date(Math.max(feedTs || 0, now - 7 * 24 * 3600 * 1000)).toISOString();
     const rawSince = new Date(Math.max(Date.parse(since), now - DB_RAW_MS)).toISOString();
-    const rows = await sbGet(`telemetry?select=received_at,co2_ppm,co2_status,flags&received_at=gte.${encodeURIComponent(rawSince)}&order=received_at.desc&limit=4000`);
+    const rows = await sbGet(`telemetry?select=received_at,co2_ppm,co2_status,temp1_c,flags&received_at=gte.${encodeURIComponent(rawSince)}&order=received_at.desc&limit=4000`);
     let agg = [];
     if (rawSince > since) {
       try {
@@ -101,6 +102,7 @@ async function loadDb(force = false) {
       }
     }
     dbPts = joinAggRaw(agg, dbCo2Points(rows));
+    dbTemp = dbTempPoints(rows);
     if (rows[0]) dbLast = { t: Date.parse(rows[0].received_at), flags: rows[0].flags };
     if (feedTs && co2Base?.feedTs !== feedTs) { // 이 기기에 기준값이 없으면 DB의 투입 직후 첫 유효값
       const first = dbPts.find((p) => p.t >= feedTs && p.v != null);
@@ -152,15 +154,16 @@ addEventListener("online", () => location.reload());
 addEventListener("offline", netCheck);
 
 // ---- 탭 ----
-function showTab(name) {
+function showTab(name, to) {
   curTab = name;
   for (const p of document.querySelectorAll("#app > .tab")) p.hidden = p.id !== `tab-${name}`;
   document.querySelector(".topbar").hidden = name === "log"; // 분석 화면은 자체 제목(목업)
-  for (const b of document.querySelectorAll(".tabbar [role=tab]")) b.setAttribute("aria-selected", String(b.dataset.tab === (name === "live" ? "home" : name)));
+  for (const b of document.querySelectorAll(".tabbar [role=tab]")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
   if (name === "log") loadDb();
   if (name === "alert") { const ae = allEvents(); evSeen = ae.length ? Math.max(evSeen, ae[ae.length - 1].ts) : evSeen; store.set(KEY_EV_SEEN, String(evSeen)); }
   render();
   scrollTo(0, 0);
+  if (to) $(to)?.scrollIntoView({ block: "start" }); // 홈 지표 카드 → 분석 화면의 해당 섹션
 }
 document.querySelector(".tabbar").addEventListener("click", (e) => {
   const b = e.target.closest("[role=tab]");
@@ -168,7 +171,7 @@ document.querySelector(".tabbar").addEventListener("click", (e) => {
 });
 
 const speed = () => (demo ? DEMO_SPEED : 1);
-const valid = (b1) => b1?.co2_status === 1 && Number.isFinite(b1.co2_ppm);
+const valid = (b1) => co2CardValue(b1) != null;
 
 // ---- 예측(점선) vs 실측(실선) CO₂, x = 투입 후 곡선 시간 0~7일, y = ppm 한 축 ----
 function predGraph(svg, feedTs, now) {
@@ -217,22 +220,31 @@ function predGraph(svg, feedTs, now) {
   svg.innerHTML = g;
 }
 
-// ---- 실시간 그래프(최근 60초, 원값 그대로) ----
-function liveGraph(svg, pts, unit, minSpan, d, now) {
-  const W = 320, H = 200, L = 44, R = 10, Tp = 12, B = 22, LIVE_MS = liveMs;
-  const win = pts.filter((p) => now - p.t <= LIVE_MS);
-  if (win.length < 1) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="sp-empty">값이 들어오는 중이에요</text>`; return; }
-  const r = autoRange(win.map((p) => p.v), minSpan);
-  const x = (t) => L + (1 - (now - t) / LIVE_MS) * (W - L - R);
-  const y = (v) => Tp + (1 - (v - r.min) / (r.max - r.min)) * (H - Tp - B);
+// ---- 홈 통합 추이: 최근 2시간 CO₂(왼쪽 축) + 심부 온도(오른쪽 축). 값은 실시간 이력 + DB ----
+function trendGraph(svg, co2, temp, now) {
+  const W = 320, H = 150, L = 38, R = 34, Tp = 10, B = 20;
+  co2 = co2.filter((p) => now - p.t <= DB_RAW_MS); temp = temp.filter((p) => now - p.t <= DB_RAW_MS);
+  const cv = co2.filter((p) => p.v != null).map((p) => p.v), tv = temp.map((p) => p.v);
+  if (!cv.length && !tv.length) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" class="sp-empty">최근 2시간 기록이 아직 없어요</text>`; return; }
+  const x = (t) => L + (1 - (now - t) / DB_RAW_MS) * (W - L - R);
+  const yr = (r) => (v) => Tp + (1 - (v - r.min) / (r.max - r.min)) * (H - Tp - B);
   let g = "";
-  for (const v of [r.min, (r.min + r.max) / 2, r.max]) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="sp-grid"/><text x="${L - 5}" y="${y(v) + 4}" text-anchor="end" class="sp-ax">${v.toFixed(d)}</text>`;
-  g += `<text x="${L}" y="${H - 5}" class="sp-ax">-${LIVE_MS / 1000}초</text><text x="${W - R}" y="${H - 5}" text-anchor="end" class="sp-ax">지금</text>`;
-  if (liveBase != null && now - liveBase <= LIVE_MS) g += `<line x1="${x(liveBase)}" x2="${x(liveBase)}" y1="${Tp}" y2="${H - B}" class="sp-base"/><text x="${x(liveBase) + 4}" y="${Tp + 10}" class="sp-ax">기준점</text>`;
-  g += `<polyline points="${win.map((p) => `${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")}" class="sp-real"/>`;
-  for (const p of win) g += `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2.5" fill="var(--primary)"/>`;
-  const l = win[win.length - 1];
-  g += `<circle cx="${x(l.t)}" cy="${y(l.v)}" r="6" fill="var(--primary)" stroke="#fff" stroke-width="2"/>`;
+  const line = (pts, y, cls) => { // v=null 또는 60초 넘는 빈틈에서 선을 끊는다(보간 안 함)
+    let seg = [], prev = null;
+    const flush = () => { if (seg.length) g += `<polyline points="${seg.join(" ")}" class="${cls}"/>`; seg = []; };
+    for (const p of pts) { if (p.v == null || (prev && p.t - prev.t > 60000)) flush(); if (p.v != null) seg.push(`${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`); prev = p; }
+    flush();
+  };
+  const rc = cv.length ? autoRange(cv, 40, CO2_MAX) : null, rt = tv.length ? autoRange(tv, 2) : null;
+  for (const k of [0, 0.5, 1]) {
+    const yy = Tp + k * (H - Tp - B);
+    g += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" class="sp-grid"/>`;
+    if (rc) g += `<text x="${L - 4}" y="${yy + 4}" text-anchor="end" class="sp-ax co2">${Math.round(rc.max - k * (rc.max - rc.min))}</text>`;
+    if (rt) g += `<text x="${W - R + 4}" y="${yy + 4}" class="sp-ax temp">${(rt.max - k * (rt.max - rt.min)).toFixed(1)}</text>`;
+  }
+  g += `<text x="${L}" y="${H - 4}" class="sp-ax">2시간 전</text><text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle" class="sp-ax">1시간 전</text><text x="${W - R}" y="${H - 4}" text-anchor="end" class="sp-ax">지금</text>`;
+  if (rc) line(co2, yr(rc), "sp-real");
+  if (rt) line(temp, yr(rt), "sp-temp");
   svg.innerHTML = g;
 }
 
@@ -286,7 +298,7 @@ function render() {
   const hm = heatModeOf(b2);
   const ecoHome = hs.state === "calm" && hm === "eco" && !b2?.latched; // 이상·끊김·래치가 ECO보다 우선
   const latchHome = !!b2?.latched && hs.state === "calm"; // 래치 중엔 웃는 얼굴·꽃 대신 기본 표정
-  $("hero").className = `hero ${hs.state}${ecoHome ? " eco" : ""}${latchHome ? " latch" : ""}`;
+  $("hero").className = `hero card ${hs.state}${ecoHome ? " eco" : ""}${latchHome ? " latch" : ""}`;
   // 표정 이미지(판정은 logic 그대로): 정상=웃음, 이상=화남, 대기·데이터 없음=기본, 끊김=기본+회색
   const linked = !!(client?.connected && gw.online);
   const face = ecoHome || latchHome ? "base" : hs.state === "calm" ? "happy" : hs.state === "alert" ? "angry" : "base";
@@ -297,9 +309,9 @@ function render() {
     pig.classList.remove("pop"); void pig.offsetWidth; pig.classList.add("pop"); // 전환 시 squash-bounce
   }
   pig.className = `${pigCls}${pig.classList.contains("pop") ? " pop" : ""}`;
-  const latched = !!b2?.latched; // firmware2 과열 래치: 해제 = 식은 뒤 off 명령
+  const latched = !!b2?.latched; // firmware2 과열 래치: 해제 = 식은 뒤 '과열 차단 해제'(latch_reset), 끄기(off)로는 안 풀림
   const note = deviceNote(b2); // fault·대체 제어
-  const txt = latched && hs.state !== "sleep" && hs.state !== "alert" ? faultWord(b2) || "과열 차단 중이에요 — 식은 뒤 '히터 끄기'로 해제"
+  const txt = latched && hs.state !== "sleep" && hs.state !== "alert" ? faultWord(b2) || "과열 차단 중이에요 — 충분히 식은 뒤 '과열 차단 해제'를 눌러 주세요"
     : linked && note && hs.state !== "alert" ? note
     : ecoHome ? "에너지 아끼며 새근새근 낮잠 자는 중… zZ 🐽" : homeText(hs);
   $("moodText").textContent = txt;
@@ -315,15 +327,27 @@ function render() {
   $("vCo2").textContent = co2ok ? Math.round(co2v) : "—";
   $("nCo2").textContent = !b1 ? (localCtrl ? "#1 끊김" : "연결 안 됨") : !co2ok ? "센서 준비 중" : hs.reasons.includes("co2") ? "높아요!" : "좋아요";
   $("cCo2").classList.toggle("hot", hs.reasons.includes("co2"));
+  $("arCo2").textContent = co2ok ? co2Arrow(co2Slope(co2Hist, now)) : "";
   const t = tempCardValue(b1);
   setSrcBadge($("srcTemp"), t);
   $("vTemp").textContent = t != null ? t.toFixed(1) : "—";
+  const band = tempBand(t);
+  $("lvTemp").hidden = !band; $("lvTemp").textContent = band?.text || ""; $("lvTemp").className = `lvl ${band?.key || ""}`;
   $("nTemp").textContent = hs.reasons.includes("hot") ? "너무 뜨거워요!" : Number.isFinite(showTgt) ? `목표 ${+showTgt.toFixed(1)}℃` : !b1 ? "연결 안 됨" : "적당해요";
   $("cTemp").classList.toggle("hot", hs.reasons.includes("hot"));
   const odor = odorCard(b1);
   $("vOdor").textContent = odor.text;
   $("srcOdor").hidden = !odor.badge; $("srcOdor").textContent = odor.badge; $("srcOdor").className = `src ${odor.badge === "실측" ? "real" : "dq"}`;
   $("odorWarm").hidden = !odor.warm;
+  $("vOdorH").textContent = odor.text;
+  $("srcOdorH").hidden = !odor.badge; $("srcOdorH").textContent = odor.badge; $("srcOdorH").className = `src ${odor.badge === "실측" ? "real" : "dq"}`;
+  $("odorWarmH").hidden = !odor.warm;
+  const hasOdorIdx = Number.isFinite(b1?.odor_index);
+  const odorNote = !hasOdorIdx && Number.isFinite(b1?.gas_v) ? "가스 센서 전압" : "깨끗한 공기 = 1";
+  $("nOdor").textContent = odorNote;
+  $("nOdorH").textContent = hasOdorIdx ? `${odorWord(b1)} · ${odorNote}` : odorNote;
+  // 진짜 끊김(게이트웨이·브로커)만 카드 딤. #1만 끊긴 대체 제어는 online이라 딤 안 함
+  $("homeCards").classList.toggle("dim", !online); $("offMsg").hidden = online;
 
   const feedTs = lastFeedTs();
   const p = decompProgress(feedTs, now, speed());
@@ -338,12 +362,11 @@ function render() {
   $("vAct").textContent = act?.pct != null ? `${act.pct}%` : "—";
   $("nAct").textContent = !feedTs ? "음식물을 넣으면 보여요" : !act ? "측정 대기" : act.text;
   $("nAct").className = `num act ${act?.key || ""}`;
-  $("vFeed").textContent = feedTs ? ago(now - feedTs) : "—";
-  $("nFeed").textContent = feedTs ? t2s(feedTs) : "기록 없음";
+  $("qFeedSub").textContent = feedTs ? `최근 투입 ${ago(now - feedTs)} · ${t2s(feedTs)}` : "기록 없음";
   $("progAct").className = `num act ${act?.key || ""}`;
   for (const b of document.querySelectorAll(".badge.demo")) b.hidden = !demo;
   $("holdNote").hidden = !hotSt?.active;
-  $("ampBadge").textContent = amp === AMP_DEFAULT ? "보정 전" : `보정 후 +${amp}ppm`;
+  $("ampBadge").textContent = amp === AMP_DEFAULT ? "기본 가정" : `실측 반영 +${amp}ppm`;
 
   const hb = $("heatBadge");
   if (!b2) { hb.textContent = "연결 안 됨"; hb.className = "badge"; }
@@ -355,26 +378,20 @@ function render() {
   $("ecoNote").hidden = hm !== "eco" || localCtrl;
   for (const el of document.querySelectorAll(".latchNote")) {
     el.hidden = !latched;
-    el.textContent = `🔒 ${b2?.fault_text === "no_rise" ? faultWord(b2) : "과열 차단(래치) — 식은 뒤 '히터 끄기'로 해제해요"}`;
+    el.textContent = `🔒 ${b2?.fault_text === "no_rise" ? faultWord(b2) : "안전 과열 차단 — 충분히 식은 뒤 '과열 차단 해제'를 눌러요. 풀린 뒤엔 꺼진 상태라 '자동'을 눌러야 다시 데워요"}`;
+  }
+  $("latchBar").hidden = !latched;
+  for (const el of document.querySelectorAll(".latchBtn")) { // 사용자가 직접 눌렀을 때만 발행
+    el.hidden = !latched;
+    el.disabled = !client?.connected || !!pendingReset;
+    el.textContent = pendingReset ? "과열 차단 해제 확인 중…" : "과열 차단 해제";
   }
   $("devNote").hidden = !note || latched; $("devNote").textContent = localCtrl && !faultWord(b2) ? `${note} — 지금 목표는 ${LOCAL_TARGET_C}℃ 고정, 모드 설정은 #1 연결이 돌아오면 적용돼요` : note;
   // 홈 모드 칩 + 절전 토글(실제 상태는 telemetry 기준 → 실패하면 자연히 원래 상태로 돌아감)
-  const chip = $("modeChip");
-  chip.hidden = !hm;
-  chip.className = `chip ${hm || ""}`;
-  chip.textContent = localCtrl && hm !== "off" ? `대체 제어 ${LOCAL_TARGET_C}℃` : hm === "eco" ? "🌱 절전 모드" : hm === "off" ? "히터 꺼짐" : hm === "auto" ? "자동 모드" : hm || "";
-  const busy = !!pendingHeat && !pendingHeat.auto && (pendingHeat.want === "eco" || pendingHeat.want === "auto");
-  const tg = $("ecoToggle");
-  tg.hidden = hm === "off";
-  $("ecoOffNote").hidden = hm !== "off";
-  tg.classList.toggle("on", hm === "eco");
-  tg.classList.toggle("busy", busy);
-  tg.setAttribute("aria-checked", String(hm === "eco"));
-  tg.disabled = !client?.connected || !hm || busy;
-  $("ecoCard").classList.toggle("on", hm === "eco");
-  $("ecoSub").textContent = !hm ? "기기와 연결되면 바꿀 수 있어요" : busy ? "기기에 보내는 중…"
-    : localCtrl ? "#1 연결이 돌아오면 적용돼요"
-    : hm === "eco" ? "목표 온도 30℃로 낮춰 히터 가동을 줄여요" : "목표 37℃로 분해를 도와요";
+  // 상태 배너 모드 줄 + 히터 퀵 액션 서브 텍스트(에코 절전이 홈에서 보이게)
+  const modeName = !hm ? "" : localCtrl && hm !== "off" ? `대체 제어 ${LOCAL_TARGET_C}℃` : hm === "eco" ? "🌱 에코 절전" : hm === "off" ? "꺼짐" : hm === "auto" ? "자동" : hm;
+  $("heroMode").textContent = !hm ? "작동 모드: 연결 안 됨" : `${Number.isFinite(showTgt) ? `목표 온도 ${+showTgt.toFixed(1)}℃ | ` : ""}작동 모드: ${modeName}`;
+  $("qHeatSub").textContent = !hm ? "연결 안 됨" : pendingHeat && !pendingHeat.auto ? "기기에 보내는 중…" : `지금: ${modeName}`;
   const ct = b2?.ctrl_temp_c ?? b1?.temp1_c;
   $("heatTemps").textContent = !b2 ? "" : [Number.isFinite(ct) ? `${ct.toFixed(1)}℃` + (Number.isFinite(b2.target_c) ? ` → ${ctrlTargetOf(b2)}℃` : "") : "",
     b2.heater_on ? "히터 켜짐" : "히터 꺼짐"].filter(Boolean).join(" · ");
@@ -387,15 +404,18 @@ function render() {
       pendingHeat = null;
     } else $("cmdMsg").textContent = pendingHeat.acks ? `📨 ${who}기기가 받았어요 · 반영 중…` : `📤 ${who}${name} 보내는 중…`;
   }
-  for (const [id, m] of [["autoBtn", "auto"], ["ecoBtn", "eco"], ["offBtn", "off"]]) { // 표시만: 현재 모드·대기 중
-    $(id).classList.toggle("cur", hm === m);
-    $(id).setAttribute("aria-checked", String(hm === m));
-    $(id).classList.toggle("wait", pendingHeat?.want === m);
+  $("sheetCmdMsg").textContent = $("cmdMsg").textContent;
+  for (const el of document.querySelectorAll(".mode[data-mode]")) { // 표시만: 현재 모드·대기 중(설정 화면 + 홈 시트)
+    const m = el.dataset.mode;
+    el.classList.toggle("cur", hm === m);
+    el.setAttribute("aria-checked", String(hm === m));
+    el.classList.toggle("wait", pendingHeat?.want === m);
   }
 
   // DB 품질 배지(최신 DB 행 flags, 2분 이내일 때만) + 저장 상태
   const dq = dbLast && now - dbLast.t < 120000 ? dqBadge(dbLast.flags) : "";
-  $("dqCo2").hidden = !dq; $("dqCo2").textContent = dq;
+  const dqC = dq || (co2Warm(b1) ? "예열 중" : ""); // 상태 0이면 값과 함께 예열 표시
+  $("dqCo2").hidden = !dqC; $("dqCo2").textContent = dqC;
   const dqT = dq === "수신 끊김" ? dq : ""; // 예열은 CO₂만 해당
   $("dqTemp").hidden = !dqT; $("dqTemp").textContent = dqT;
   $("dbStat").textContent = dbOk == null ? "데이터 저장: 확인 중…" : !dbOk ? "데이터 저장: DB 연결 안 됨"
@@ -423,23 +443,7 @@ function render() {
       return li;
     }));
   }
-  if (curTab === "live") {
-    const isCo2 = liveKey === "co2";
-    const pts = isCo2 ? co2Hist.map((q) => ({ t: q.t, v: q.ppm })) : tempHist.map((q) => ({ t: q.t, v: q.c }));
-    const d = isCo2 ? 0 : 1, unit = isCo2 ? "ppm" : "℃";
-    $("liveTitle").textContent = isCo2 ? "CO₂" : "심부 온도";
-    $("liveUnit").textContent = unit;
-    $("liveWin").textContent = liveMs === 60000 ? "2분" : "60초";
-    const lp = pts.filter((q) => now - q.t <= 12000).pop();
-    const liveSrc = srcBadge(lp?.v, b1Src());
-    $("liveSpan").textContent = `최근 ${liveMs === 60000 ? "60초" : "2분"}${liveSrc ? ` · ${liveSrc}` : ""}`;
-    $("liveVal").textContent = lp ? lp.v.toFixed(d) : "—";
-    const ref = liveBase != null ? pts.find((q) => q.t >= liveBase) : null;
-    const dv = ref && lp ? lp.v - ref.v : null;
-    $("liveDelta").textContent = dv == null ? "기준점을 누르면 변화량이 보여요" : `기준점 대비 ${dv >= 0 ? "+" : ""}${dv.toFixed(d)} ${unit} ${dv > 0 ? "↑" : dv < 0 ? "↓" : ""}`;
-    $("liveDelta").className = `delta ${dv > 0 ? "up" : dv < 0 ? "down" : ""}`;
-    liveGraph($("gLive"), pts, unit, isCo2 ? 20 : 0.5, d, now);
-  }
+  if (curTab === "home") trendGraph($("gTrend"), co2All(), mergeCo2(tempHist.map((q) => ({ t: q.t, ppm: q.c })), dbTemp), now);
   if (curTab === "alert") {
     $("evEmpty").hidden = evAll.length > 0;
     $("evList").replaceChildren(...evAll.slice().reverse().map((e) => {
@@ -451,7 +455,7 @@ function render() {
     }));
   }
   const dis = !client?.connected;
-  for (const b of document.querySelectorAll("#feedBtns button, #homeFeed button, #offBtn, #autoBtn, #ecoBtn")) b.disabled = dis;
+  for (const b of document.querySelectorAll("#feedBtns button, #homeFeed button, .mode[data-mode]")) b.disabled = dis;
 }
 
 $("clearEv").addEventListener("click", () => { events = []; store.set(KEY_EV, "[]"); evCleared = Date.now(); store.set("oink.app.events.cleared", String(evCleared)); render(); });
@@ -459,15 +463,16 @@ function tapCard(el, fn) {
   el.addEventListener("click", fn);
   el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
 }
-for (const id of ["cCo2", "cTemp"]) tapCard($(id), () => { liveKey = $(id).dataset.live; liveBase = null; showTab("live"); });
-tapCard($("cAct"), () => showTab("log"));
+for (const el of document.querySelectorAll("#homeCards .tap")) tapCard(el, () => showTab("log", el.dataset.go));
+$("trendMore").addEventListener("click", () => showTab("log"));
+// 퀵 액션 시트(<dialog>): 바깥(배경)·닫기 누르면 닫힘. 투입 기록은 기존 onFeed, 히터는 기존 sendHeater 그대로
+for (const d of document.querySelectorAll("dialog.sheet")) d.addEventListener("click", (e) => { if (e.target === d || e.target.closest("[data-close]")) d.close(); });
+$("qFeed").addEventListener("click", () => $("sheetFeed").showModal());
+$("qHeat").addEventListener("click", () => $("sheetHeat").showModal());
+for (const el of document.querySelectorAll("#sheetHeat .mode[data-mode]")) el.addEventListener("click", () => sendHeater(el.dataset.mode));
 $("logBack").addEventListener("click", () => showTab("home"));
 $("spanDay").addEventListener("click", () => { predSpanH = 24; render(); });
 $("spanWeek").addEventListener("click", () => { predSpanH = DECOMP_END_H; render(); });
-$("liveBack").addEventListener("click", () => showTab("home"));
-$("liveBase").addEventListener("click", () => { liveBase = Date.now(); render(); });
-$("liveBaseClr").addEventListener("click", () => { liveBase = null; render(); });
-$("liveWin").addEventListener("click", () => { liveMs = liveMs === 60000 ? 120000 : 60000; render(); });
 
 // ---- 예측 설정 ----
 $("amp").value = amp;
@@ -503,14 +508,16 @@ document.addEventListener("click", (e) => { if (e.target.closest("button:not([da
 const canNotify = () => typeof Notification !== "undefined";
 
 // ---- 알림: 목록 + 상단 토스트 + 시스템 알림 ----
-function notify(kind, text) {
-  events = addEvents(events, [{ ts: Date.now(), kind, text }]); store.set(KEY_EV, JSON.stringify(events));
+function toast(text, ok = false, ic = "") {
   const t = $("toast");
-  const ic = kind === "hot_on" ? "i-flame" : kind === "hot_off" ? "i-check" : "";
   t.innerHTML = ic ? `<svg class="t-ic" aria-hidden="true"><use href="#${ic}"/></svg>` : "";
   t.append(Object.assign(document.createElement("span"), { textContent: text }));
-  t.className = `toast ${kind === "hot_off" ? "ok" : ""}`; t.hidden = false;
+  t.className = `toast ${ok ? "ok" : ""}`; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 15000); // 무대에서 읽을 시간
+}
+function notify(kind, text) {
+  events = addEvents(events, [{ ts: Date.now(), kind, text }]); store.set(KEY_EV, JSON.stringify(events));
+  toast(text, kind === "hot_off", kind === "hot_on" ? "i-flame" : kind === "hot_off" ? "i-check" : "");
   if (canNotify() && Notification.permission === "granted") {
     const opt = { body: text, icon: "icons/icon-192.png", tag: `oink-${kind}` };
     navigator.serviceWorker?.getRegistration().then((r) => (r ? r.showNotification("Oink", opt) : new Notification("Oink", opt))).catch(() => {});
@@ -527,6 +534,10 @@ function onMessage(topic, buf) {
   try { msg = JSON.parse(raw); } catch { return; }
   if (!msg || typeof msg !== "object") return;
   if (topic === T.ack) {
+    if (pendingReset && msg.id === pendingReset.id) {
+      clearTimeout(pendingReset.timer); pendingReset = null;
+      toast(latchResetText(msg), msg.ok === true); render(); return;
+    }
     if (pendingHeat?.ids.includes(msg.id)) {
       if (msg.ok === false) { $("cmdMsg").textContent = `⚠️ 기기가 거절했어요: ${String(msg.msg || "이유 없음")}`; pendingHeat = null; }
       else pendingHeat.acks++;
@@ -541,7 +552,7 @@ function onMessage(topic, buf) {
     const keep = (h) => h.filter((p) => gw.lastSeen - p.t < 72 * 3600 * 1000);
     const now = gw.lastSeen;
     if (valid(b1)) co2Hist = capPoints(keep([...co2Hist, { t: now, ppm: b1.co2_ppm }]));
-    if (Number.isFinite(b1?.temp1_c)) tempHist = keep([...tempHist, { t: now, c: b1.temp1_c }]).filter((p) => now - p.t <= 10 * 60000);
+    if (Number.isFinite(b1?.temp1_c)) tempHist = keep([...tempHist, { t: now, c: b1.temp1_c }]).filter((p) => now - p.t <= DB_RAW_MS); // 홈 통합 추이 2시간
     const b2 = msg.board2;
     const feedTs = lastFeedTs();
     if (feedTs && co2Base?.feedTs !== feedTs) { // 투입 직후 첫 유효값을 기준으로
@@ -595,6 +606,7 @@ const onFeed = (e) => {
   });
   $("feedMsg").textContent = $("homeFeedMsg").textContent = `기록했어요 (${size}) — 지금부터 예측 곡선 시작`;
   play("chime");
+  $("sheetFeed").close();
   render();
 };
 // 투입 버튼 하트 콘페티(시각 효과만, 기록 로직과 무관). 움직임 줄이기 설정이면 CSS가 숨김
@@ -616,9 +628,18 @@ $("feedBtns").addEventListener("click", onFeed);
 $("homeFeed").addEventListener("click", onFeed);
 
 $("offBtn").addEventListener("click", () => sendHeater("off"));
+// 과열 차단 해제: 직접 누름 + 확인 대화상자 → latch_reset 1회. 판단(온도)은 기기가 하고 ack로 결과를 알려 줌.
+function sendLatchReset() {
+  if (!client?.connected || pendingReset || gw.tele?.board2?.latched !== true) return;
+  if (!window.confirm(LATCH_RESET_ASK)) return;
+  const c = latchResetCmd(mkId);
+  client.publish(T.cmd, JSON.stringify(c), { qos: 1 });
+  pendingReset = { id: c.id, timer: setTimeout(() => { pendingReset = null; toast(LATCH_RESET_NOACK); render(); }, HEAT_TIMEOUT_MS) };
+  render();
+}
+for (const el of document.querySelectorAll(".latchBtn")) el.addEventListener("click", sendLatchReset);
 $("autoBtn").addEventListener("click", () => sendHeater("auto"));
 $("ecoBtn").addEventListener("click", () => sendHeater("eco"));
-$("ecoToggle").addEventListener("click", () => sendHeater(heatModeOf(gw.tele?.board2) === "eco" ? "auto" : "eco"));
 
 function showLogin(err) {
   $("app").hidden = true; $("login").hidden = false;

@@ -14,11 +14,15 @@ export function co2Slope(hist, now) {
   return den ? (num / den) * 60000 : null;
 }
 
+// CO₂ 값 사용 가능: ppm이 0 이상 숫자이고 상태가 센서 오류(2)·범위 초과(3)가 아님. 상태 0(예열)도 실측값이라 쓴다(펌웨어 226127b)
+export const co2Valid = (b1) => Number.isFinite(b1?.co2_ppm) && b1.co2_ppm >= 0 && b1.co2_status !== 2 && b1.co2_status !== 3;
+export const co2Warm = (b1) => co2Valid(b1) && b1.co2_status === 0; // 값은 보여 주고 "예열 중" 표시만
+
 // 캐릭터 상태: sleep | smelly | busy | calm
 export function mood({ online, lastSeen, now, b1, slope }) {
   if (!online || !lastSeen || now - lastSeen > STALE_MS || !b1) return "sleep";
   if (typeof b1.odor_index === "number" && b1.odor_index >= 2) return "smelly";
-  if (b1.co2_status === 1 && slope != null && slope > 0) return "busy";
+  if (co2Valid(b1) && slope != null && slope > 0) return "busy";
   return "calm";
 }
 
@@ -105,7 +109,7 @@ function riseFrom(temps, now) {
   const last = tw[tw.length - 1];
   return last.t > lo.t && last.c - lo.c >= HOT_RISE_C ? lo.c : null;
 }
-// series: { t1: [{t, c}] }, co2s: [{t, ppm}] (co2_status==1인 점만)
+// series: { t1: [{t, c}] }, co2s: [{t, ppm}] (co2Valid인 점만)
 export function hotFoodHit(series, co2s, now) {
   const cv = co2s.filter((p) => now - p.t <= HOT_CO2_MS).map((p) => p.ppm);
   if (cv.length < 2 || Math.max(...cv) - Math.min(...cv) < HOT_CO2_D) return null;
@@ -138,7 +142,8 @@ export function autoRange(vs, minSpan, cap = Infinity) {
 }
 // 앱이 열려 있는 동안 OFF 유지: #2는 30초 무수신이면 auto로 돌아가므로 10초마다 재발행
 export const HOLD_RESEND_MS = 10000;
-// firmware2는 "래치 뒤에 받은 off"를 해제 조건으로 쓴다(heater_core.h) → 자동 흐름은 래치 중 off·auto를 보내면 안 됨. 사람이 누르는 '히터 끄기'는 이 판단을 거치지 않는다.
+// 래치 해제는 사람이 누르는 '과열 차단 해제'(latch_reset)만 한다. off는 정지 전용이라 해제와 무관하지만,
+// 래치를 본 자동 흐름은 복귀(auto)를 사람에게 맡기려고 off·auto를 보내지 않는다. 사람이 누르는 '히터 끄기'는 이 판단을 거치지 않는다(정지만, 해제 아님).
 // latched가 boolean이 아니면(board2 없음·구 펌웨어) "unknown" = 안전 쪽으로 보내지 않음
 export const latchStatus = (b2) => (b2?.latched === true ? "latched" : b2?.latched === false ? "clear" : "unknown");
 // r = hotFoodStep 결과, 방금 받은 텔레메트리의 b2로 판단(텔레메트리 수신 때만 호출되므로 오래된 값으로 보내지 않음).
@@ -162,7 +167,7 @@ export function co2TrendText(slope) {
 // 쉬운 말 요약
 export function co2Word(b1, slope) {
   if (!b1) return "연결 안 됨";
-  if (b1.co2_status !== 1) return "준비 중";
+  if (!co2Valid(b1)) return "준비 중";
   return slope != null && slope > 0 ? "활발해요" : "잔잔해요";
 }
 export function odorWord(b1) {
@@ -175,8 +180,10 @@ export function odorWord(b1) {
 export const ERR_H2S_WARMUP = 1 << 2;
 export function odorCard(b1) {
   if (!b1) return { text: "—", badge: "", warm: false };
-  const ok = Number.isFinite(b1.odor_index);
-  return { text: ok ? b1.odor_index.toFixed(1) : "—", badge: ok ? "실측" : "교정 전", warm: !!(b1.err & ERR_H2S_WARMUP) };
+  const ok = Number.isFinite(b1.odor_index), warm = !!(b1.err & ERR_H2S_WARMUP);
+  // 지수가 없으면(R0 교정 전) 펌웨어가 계속 보내는 D8 전압 실측값을 보여 준다
+  if (!ok && Number.isFinite(b1.gas_v)) return { text: `${b1.gas_v.toFixed(2)} V`, badge: srcBadge(b1.gas_v, "실측"), warm };
+  return { text: ok ? b1.odor_index.toFixed(1) : "—", badge: ok ? "실측" : "교정 전", warm };
 }
 export function tempWord(t) {
   if (typeof t !== "number") return "확인 중";
@@ -190,7 +197,7 @@ export function addFeed(log, entry) {
 
 // ---- 홈 캐릭터(스케치 기준): calm(노랑) | alert(빨강) | sleep(회색) ----
 export const TEMP_ALERT = 45;   // 심부온도 ℃ 이상이면 이상
-export const CO2_ALERT = 1500;  // CO₂ ppm 이상이면 이상(co2_status==1일 때만)
+export const CO2_ALERT = 1500;  // CO₂ ppm 이상이면 이상(co2Valid일 때, 예열 중 포함)
 
 // 반환: { state, reasons } — reasons: "hot" | "co2"
 export function homeState({ online, lastSeen, now, b1, b2 }) {
@@ -199,9 +206,25 @@ export function homeState({ online, lastSeen, now, b1, b2 }) {
   if (!b1) return { state: local ? "local" : "sleep", reasons: [] };
   const reasons = [];
   if (Number.isFinite(b1.temp1_c) && b1.temp1_c >= TEMP_ALERT) reasons.push("hot");
-  if (b1.co2_status === 1 && Number.isFinite(b1.co2_ppm) && b1.co2_ppm >= CO2_ALERT) reasons.push("co2");
+  if (co2Valid(b1) && b1.co2_ppm >= CO2_ALERT) reasons.push("co2");
   return { state: reasons.length ? "alert" : local ? "local" : "calm", reasons };
 }
+
+// 홈 심부 온도 배지: 정상 30~40℃, 주의 40~45℃, 과열 45℃ 이상(TEMP_ALERT). 30℃ 미만은 경고 아님(낮음)
+export function tempBand(t) {
+  if (!Number.isFinite(t)) return null;
+  if (t >= TEMP_ALERT) return { key: "hot", text: "과열" };
+  if (t > 40) return { key: "warn", text: "주의" };
+  return t >= 30 ? { key: "ok", text: "정상" } : { key: "low", text: "낮음" };
+}
+// 홈 CO₂ 추세 화살표(slope = co2Slope, ppm/분). 10ppm/분 = 5분 창에서 50ppm(CM1106 정확도 ±50ppm급) — 그보다 작으면 잡음으로 보고 →
+export const CO2_TREND_MIN = 10;
+export const co2Arrow = (slope) => (slope == null ? "" : slope >= CO2_TREND_MIN ? "↑" : slope <= -CO2_TREND_MIN ? "↓" : "→");
+// DB telemetry 행 → 심부 온도 점(홈 통합 추이). 결측·센서 오류·범위 밖·#1 끊김 행은 뺀다(급변 spike는 정상 사용)
+const TEMP_BAD = ["temp1_c:missing", "temp1_c:sensor_error", "temp1_c:out_of_range", "board1:missing"];
+export const dbTempPoints = (rows) => (Array.isArray(rows) ? rows : [])
+  .map((r) => ({ t: Date.parse(r.received_at), v: r.temp1_c, bad: Array.isArray(r.flags) && r.flags.some((f) => TEMP_BAD.includes(f)) }))
+  .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.v) && !p.bad).map(({ t, v }) => ({ t, v })).sort((a, b) => a.t - b.t);
 
 export function homeText({ state, reasons }) {
   if (state === "sleep") return "쿨쿨 자는 중… 💤";
@@ -264,7 +287,7 @@ export function dbCo2Points(rows, gapMs = 30000) { // 정상 2초 주기. 10초 
     .filter((r) => Number.isFinite(r.t)).sort((a, b) => a.t - b.t);
   for (const r of sorted) {
     const fl = Array.isArray(r.flags) ? r.flags : [];
-    const ok = r.co2_status === 1 && Number.isFinite(r.co2_ppm);
+    const ok = co2Valid(r);
     if (prevT != null && r.t - prevT > gapMs && out.length && out[out.length - 1].v != null) out.push({ t: r.t - 1, v: null });
     if (!ok || fl.some((f) => BREAK_FLAGS.includes(f))) { if (out.length && out[out.length - 1].v != null) out.push({ t: r.t, v: null }); }
     else out.push({ t: r.t, v: r.co2_ppm, flagged: fl.some((f) => f.startsWith("co2_ppm:")) });
@@ -322,13 +345,28 @@ export function joinAggRaw(agg, raw) {
 // firmware2 heater_core.h faultText → 사용자 문구
 export const FAULT_WORD = {
   no_data: "센서 값을 못 받아 히터를 껐어요",
-  overheat: "과열 차단 중이에요 — 식은 뒤 '히터 끄기'로 해제",
+  overheat: "과열 차단 중이에요 — 충분히 식은 뒤 '과열 차단 해제'를 눌러 주세요",
   ontime_rest: "오래 가열해서 10분 쉬는 중이에요",
-  no_rise: "온도가 오르지 않아 히터를 멈췄어요 — 탐침 확인 후 '히터 끄기'로 해제",
+  no_rise: "온도가 오르지 않아 히터를 멈췄어요 — 온도 탐침을 확인한 뒤 '과열 차단 해제'를 눌러 주세요",
   hard_off: "45℃가 넘어 히터를 잠시 껐어요",
   board_mismatch: "본체 보드 설정이 달라 히터가 꺼져 있어요",
   local_sensor: "히터면 온도 센서 오류로 히터를 껐어요",
 };
+// 과열 차단 해제: 사용자가 버튼을 직접 눌렀을 때만 발행(firmware2 latch_reset). 해제 뒤 히터는 꺼짐, '자동'을 눌러야 다시 데움.
+export const latchResetCmd = (mkId) => ({ id: mkId(), cmd: "latch_reset" });
+export const LATCH_RESET_ASK = "기기가 충분히 식었나요?\n과열 차단을 풀어도 히터는 꺼진 채로 있어요. 다시 데우려면 '자동'을 눌러 주세요.";
+export const LATCH_RESET_NOACK = "기기 응답이 없어요 — 잠시 뒤 다시 눌러 주세요";
+// ack {ok,msg} → 사용자 문구. msg는 firmware2 resetMsg(영문 코드 + 온도)
+export function latchResetText(ack) {
+  if (ack?.ok === true) return "과열 차단을 풀었어요. 히터는 꺼져 있어요 — 다시 데우려면 '자동'을 눌러 주세요";
+  const m = String(ack?.msg ?? "");
+  const t = m.match(/(-?\d+(?:\.\d+)?)C \(/);
+  if (m.startsWith("not latched")) return "이미 과열 차단이 풀려 있어요";
+  if (m.startsWith("too hot")) return `아직 뜨거워요${t ? ` (지금 ${t[1]}℃)` : ""} — 충분히 식힌 뒤 다시 눌러 주세요`;
+  if (m.startsWith("sensor error")) return "온도를 확인할 수 없어 풀 수 없어요 — 온도 센서 연결을 확인해 주세요";
+  if (m.startsWith("wait")) return "온도를 확인하는 중이에요 — 잠시 뒤 다시 눌러 주세요";
+  return "과열 차단을 풀지 못했어요 — 기기 상태를 확인해 주세요";
+}
 export const LOCAL_CTRL_TEXT = "#1 끊김, 대체 제어 중";
 export const LOCAL_TARGET_C = 40; // firmware2 config.h LOCAL_TARGET_C
 // 2보드(firmware2) 판별: cloud-dashboard/link.js isTwoBoard와 같은 기준. firmware2엔 가짜값 모드가 없다.
@@ -337,7 +375,7 @@ export const b1SrcLabel = (two, fake) => (two || !fake ? "실측" : "시험값")
 // 출처 배지: 값이 없으면("—") 주장하지 않음
 export const srcBadge = (val, label) => (Number.isFinite(val) ? label : "");
 // 카드에 표시하는 값(없으면 null)
-export const co2CardValue = (b1) => (b1?.co2_status === 1 && Number.isFinite(b1.co2_ppm) ? b1.co2_ppm : null);
+export const co2CardValue = (b1) => (co2Valid(b1) ? b1.co2_ppm : null);
 export const tempCardValue = (b1) => (Number.isFinite(b1?.temp1_c) ? b1.temp1_c : null);
 export const faultWord = (b2) => FAULT_WORD[b2?.fault_text] ?? "";
 // 기기 상태 문구: fault가 대체 제어보다 우선
@@ -348,7 +386,7 @@ const DB_EV_KINDS = ["latched", "unlatched", "fault", "b1_lost", "b1_back", "reb
 export function dbEventText(e) {
   const d = e?.detail || {};
   switch (e?.kind) {
-    case "latched": return `과열 차단(래치)${d.fault_text ? ` — ${FAULT_WORD[d.fault_text] ?? d.fault_text}` : ""}`;
+    case "latched": return `안전 과열 차단 작동${d.fault_text ? ` — ${FAULT_WORD[d.fault_text] ?? d.fault_text}` : ""}`;
     case "unlatched": return "과열 차단이 풀렸어요";
     case "fault": return d.to && d.to !== "ok" ? `기기 상태: ${FAULT_WORD[d.to] ?? d.to}` : "기기 오류가 해제됐어요";
     case "b1_lost": return "돼지머리 센서 신호가 끊겼어요";
