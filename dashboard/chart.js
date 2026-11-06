@@ -41,7 +41,7 @@
     const segs = [];
     let cur = [];
     for (const p of pts) {
-      if (cur.length && p.t - cur[cur.length - 1].t > gapMs) { segs.push(cur); cur = []; }
+      if (cur.length && (p.brk || p.t - cur[cur.length - 1].t > gapMs)) { segs.push(cur); cur = []; } // brk = DB 결측·끊김 뒤 첫 점
       cur.push(p);
     }
     if (cur.length) segs.push(cur);
@@ -77,6 +77,7 @@
       s += seg.length > 1
         ? `<path d="${d}" fill="none" stroke="${lineColor}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`
         : `<circle cx="${xOf(seg[0].t, now, W)}" cy="${yOf(seg[0].v, min, max, h)}" r="2.5" fill="${lineColor}"/>`;
+      for (const p of seg) if (p.f) s += `<circle cx="${xOf(p.t, now, W).toFixed(1)}" cy="${yOf(p.v, min, max, h).toFixed(1)}" r="3" fill="none" stroke="#8a919c" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`; // DB 품질 플래그 점
     }
     let total = h;
     if (band) {

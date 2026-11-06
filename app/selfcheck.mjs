@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
   homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
-  heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge } from "./logic.mjs";
+  heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
+  db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -165,4 +166,20 @@ assert.equal(dqBadge(["board1:missing"]), "수신 끊김");
 assert.equal(dqBadge(["stream:gap", "co2_ppm:warming"]), "수신 끊김");
 assert.equal(dqBadge(["temp1_c:spike"]), "");    // 온도 급변은 경고 안 함
 assert.equal(dqBadge(null), "");
+// DB 1분 집계 뷰
+const m = (k) => new Date(now + k * 60000).toISOString();
+const ap = db1mPoints([{ minute: m(0), co2_avg: 600.4, flagged: 0 }, { minute: m(1), co2_avg: null, flagged: 30 }, { minute: m(2), co2_avg: 620, flagged: 0 }, { minute: m(10), co2_avg: 650, flagged: 1 }]);
+assert.deepEqual(ap.map((p) => p.v), [600, null, 620, null, 650]); // 평균 없음·2분 넘는 빈 분에서 끊김
+assert.equal(ap[ap.length - 1].flagged, true);
+const jr = joinAggRaw([{ t: now, v: 600 }, { t: now + 60000, v: 610 }, { t: now + 120000, v: 620 }], [{ t: now + 90000, v: 615 }]);
+assert.deepEqual(jr.map((p) => p.v), [600, 610, null, 615]);       // 원본이 덮는 시각 이후 집계 버림, 경계 끊김
+assert.deepEqual(joinAggRaw([{ t: 1, v: 5 }], []), [{ t: 1, v: 5 }]);
+// DB 이벤트 → 알림, 중복 제거
+const de = dbEvents([{ id: 7, ts: iso(now), kind: "latched", detail: { fault_text: "과열 50℃" } }, { id: 8, ts: iso(now + 1000), kind: "heater_on", detail: {} }, { id: 9, ts: iso(now + 2000), kind: "reboot", detail: {} }]);
+assert.deepEqual(de.map((e) => e.dbId), [7, 9]);                    // 표시 대상 kind만
+assert.match(de[0].text, /과열 50℃/);
+assert.equal(dbEventText({ kind: "fault", detail: { to: null } }), "기기 오류가 해제됐어요");
+const me = mergeEvents([{ ts: now + 500, kind: "alert_on", text: "x" }, de[0]], de);
+assert.deepEqual(me.map((e) => e.dbId ?? "local"), [7, "local", 9]); // 시간순, 같은 dbId 하나
+assert.equal(mergeEvents(Array.from({ length: 60 }, (_, i) => ({ ts: i, text: "a" })), []).length, EVENT_MAX);
 console.log("selfcheck ok");

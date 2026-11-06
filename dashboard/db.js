@@ -50,6 +50,41 @@
   const eventRow = (e) => ({ ts: hm(e.ts), kind: e.kind, text: eventSummary(e) });
   const feedRow = (f) => ({ ts: new Date(f.fed_at).toLocaleString("ko-KR", { hour12: false }), amount: [f.size, f.amount_g != null && `${f.amount_g} g`].filter(Boolean).join(" · ") || "—", by: f.created_by || "—", food: f.food || "" });
 
+  // DB telemetry 행 → 그래프 점(페이지 열 때 미리 채움). 원값 그대로, 보간 없음.
+  // 결측·끊김 플래그 행은 점을 만들지 않고 다음 점에 brk(선 끊기), 해당 metric 플래그가 있으면 f(회색 속빈 원).
+  const BREAK = ["stream:gap", "board1:missing"];
+  function histPts(rows) {
+    const out = { co2: [], t1: [], gas: [], odor: [], heat: [] };
+    const brk = { co2: false, t1: false, gas: false, odor: false, heat: false };
+    const sorted = (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, t: Date.parse(r.received_at) }))
+      .filter((r) => Number.isFinite(r.t)).sort((a, b) => a.t - b.t);
+    const put = (k, t, v, fl, metric) => {
+      if (v == null || (typeof v === "number" && !Number.isFinite(v))) { brk[k] = true; return; }
+      const p = { t, v };
+      if (brk[k]) { p.brk = true; brk[k] = false; }
+      if (metric && fl.some((f) => f.startsWith(metric + ":"))) p.f = true;
+      out[k].push(p);
+    };
+    for (const r of sorted) {
+      const fl = Array.isArray(r.flags) ? r.flags : [];
+      if (fl.some((f) => BREAK.includes(f))) { if (fl.includes("stream:gap")) Object.keys(brk).forEach((k) => (brk[k] = true)); }
+      const b1 = !fl.includes("board1:missing");
+      const co2Ok = r.co2_status === 1 && !fl.includes("co2_ppm:missing") && !fl.includes("co2_ppm:warming");
+      put("co2", r.t, b1 && co2Ok ? r.co2_ppm : null, fl, "co2_ppm");
+      put("t1", r.t, b1 && !fl.includes("temp1_c:sensor_error") ? r.temp1_c : null, fl, "temp1_c");
+      put("gas", r.t, b1 ? r.gas_v : null, fl, "gas_v");
+      put("odor", r.t, b1 ? r.odor_index : null, fl, "odor_index");
+      put("heat", r.t, typeof r.heater_on === "boolean" ? r.heater_on : null, fl, null);
+    }
+    return out;
+  }
+  // DB 점을 live 배열 앞에 붙인다(live 첫 점보다 오래된 것만, 배열은 제자리 수정 — record()가 같은 배열에 쌓음)
+  function prepend(live, dbp) {
+    const lo = live.length ? live[0].t : Infinity;
+    live.unshift(...dbp.filter((p) => p.t < lo));
+    return live;
+  }
+
   // Content-Range "0-0/123" 또는 "*/0" → 전체 개수
   const parseCount = (h) => { const m = /\/(\d+)$/.exec(h || ""); return m ? Number(m[1]) : null; };
 
@@ -86,14 +121,28 @@
         `<tr><td>${esc(r.ts)}</td><td>${esc(r.amount)}</td><td>${esc(r.food)}</td><td>${esc(r.by)}</td></tr>`).join("")
         : `<tr><td colspan="4" class="empty">기록 없음</td></tr>`;
       $("dbErr").textContent = "";
+      get("telemetry_1m?select=minute&limit=1")
+        .then(() => { $("dbView").textContent = "1분 집계 뷰(telemetry_1m): 있음"; $("dbView").className = "dbstate ok"; })
+        .catch(() => { $("dbView").textContent = "1분 집계 뷰(telemetry_1m): 없음 — supabase/migrations/20261106030000 적용 필요"; $("dbView").className = "dbstate warn"; });
     } catch (e) {
       $("dbErr").textContent = `DB 조회 실패 (${e.message}) — 네트워크 또는 Supabase 상태 확인`;
     }
   }
   let timer = null;
   function start(doc) { if (timer) return; refresh(doc); timer = setInterval(() => refresh(doc), C.POLL_MS); }
+  // 시연 탭(최근 5분)·가변저항 그래프(최근 60초)를 DB 원본으로 미리 채움. 실패해도 live만으로 동작
+  async function prefill(demoSt, chartSt) {
+    try {
+      const since = new Date(Date.now() - 5 * 60000).toISOString();
+      const rows = await get(`telemetry?select=received_at,co2_ppm,co2_status,temp1_c,gas_v,odor_index,heater_on,flags&received_at=gte.${encodeURIComponent(since)}&order=received_at&limit=300`).then((r) => r.json());
+      const h = histPts(rows);
+      prepend(demoSt.co2, h.co2); prepend(demoSt.t1, h.t1);
+      prepend(chartSt.gas, h.gas); prepend(chartSt.odor, h.odor); prepend(chartSt.heat, h.heat);
+      return rows.length;
+    } catch { return 0; }
+  }
 
-  const api = { C, ingestState, flagTone, dqRow, eventSummary, eventRow, feedRow, parseCount, fmtAge, refresh, start };
+  const api = { C, ingestState, flagTone, dqRow, eventSummary, eventRow, feedRow, parseCount, fmtAge, histPts, prepend, refresh, start, prefill };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else g.OinkDb = api;
 })(typeof window !== "undefined" ? window : globalThis);

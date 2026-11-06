@@ -43,3 +43,27 @@ assert.equal(D.parseCount("0-0/31"), 31);
 assert.equal(D.parseCount("*/0"), 0);
 assert.equal(D.parseCount(null), null);
 console.log("dbcheck ok");
+
+// DB 행 → 그래프 점(미리 채우기): 보간 없음, 결측·끊김 뒤 brk, metric 플래그면 f
+{
+  const t0 = Date.parse("2026-11-06T05:00:00Z"), iso = (s) => new Date(t0 + s * 1000).toISOString();
+  const h = D.histPts([
+    { received_at: iso(0), co2_ppm: 600, co2_status: 1, temp1_c: 30, gas_v: 0.5, odor_index: null, heater_on: true, flags: [] },
+    { received_at: iso(2), co2_ppm: null, co2_status: 0, temp1_c: 30.2, gas_v: 0.5, odor_index: null, heater_on: true, flags: ["co2_ppm:warming"] },
+    { received_at: iso(4), co2_ppm: 640, co2_status: 1, temp1_c: 33, gas_v: 0.5, odor_index: null, heater_on: false, flags: ["temp1_c:spike"] },
+    { received_at: iso(20), co2_ppm: null, co2_status: null, temp1_c: null, gas_v: null, odor_index: null, heater_on: false, flags: ["stream:gap", "board1:missing"] },
+    { received_at: iso(22), co2_ppm: 650, co2_status: 1, temp1_c: 33.1, gas_v: 0.6, odor_index: null, heater_on: false, flags: [] },
+  ]);
+  assert.deepEqual(h.co2.map((p) => p.v), [600, 640, 650]);   // 예열·끊김 행은 점 없음(값 지어내지 않음)
+  assert.equal(h.co2[1].brk, true);                             // 예열 뒤 첫 점에서 선 끊김
+  assert.equal(h.co2[2].brk, true);                             // gap 뒤
+  assert.equal(h.t1[2].f, true);                                // 온도 spike 점 = 회색 속빈 원
+  assert.equal(h.t1[3].brk, true);
+  assert.equal(h.odor.length, 0);                               // odor null(R0 보정 전)
+  assert.deepEqual(h.heat.map((p) => p.v), [true, true, false, false, false]); // 히터는 #2 값이라 #1 끊김과 무관
+  const live = [{ t: t0 + 21000, v: 1 }];
+  D.prepend(live, h.co2);
+  assert.deepEqual(live.map((p) => p.v), [600, 640, 1]);        // live 첫 점보다 오래된 DB 점만 앞에
+  assert.deepEqual(D.histPts(null).co2, []);
+}
+console.log("dbcheck: 미리 채우기 OK");

@@ -33,7 +33,7 @@
     const segs = [];
     let cur = [];
     for (const p of pts) {
-      if (cur.length && p.t - cur[cur.length - 1].t > gapMs) { segs.push(cur); cur = []; }
+      if (cur.length && (p.brk || p.t - cur[cur.length - 1].t > gapMs)) { segs.push(cur); cur = []; } // brk = DB 결측·끊김 뒤 첫 점
       cur.push(p);
     }
     if (cur.length) segs.push(cur);
@@ -96,7 +96,9 @@
     // 원값 그대로(평균 없음 — 실시간 지연 방지): 선 + 점, 최신 점은 크게
     for (const seg of splitGaps(win)) {
       if (seg.length > 1) s += `<path d="${seg.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-      for (const p of seg) s += `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" fill="${col}"/>`;
+      for (const p of seg) s += p.f // DB 품질 플래그 점 = 회색 속빈 원
+        ? `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" fill="none" stroke="#8a919c" stroke-width="1.5"/>`
+        : `<circle cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" fill="${col}"/>`;
     }
     if (win.length) {
       const p = win[win.length - 1];

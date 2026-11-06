@@ -1,7 +1,8 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, HOT_MSG_OFF, HOT_MSG_AUTO, autoRange, CO2_MAX, HOLD_RESEND_MS,
-  heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge } from "./logic.mjs";
+  heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
+  DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents } from "./logic.mjs";
 
 const T = {
   status: "oink/gateway/status",
@@ -65,6 +66,9 @@ let feedLog = [];
 let events = [];
 try { const a = JSON.parse(store.get(KEY_EV) || "[]"); if (Array.isArray(a)) events = a; } catch { /* 무시 */ }
 let evSeen = Number(store.get(KEY_EV_SEEN)) || 0;
+let dbEv = [];          // DB events(래치·fault·#1 끊김·재부팅) — 다른 폰과 같은 기록
+let evCleared = Number(store.get("oink.app.events.cleared")) || 0; // "지우기" 이전 DB 알림은 숨김
+const allEvents = () => mergeEvents(events, dbEv.filter((e) => e.ts > evCleared));
 let prevState = null;
 let curTab = "home";
 let dbFeedTs = null;   // DB feed_log 최신 fed_at
@@ -74,7 +78,8 @@ let dbOk = null;       // DB 조회 성공 여부(null = 확인 전)
 let dbFetchAt = 0;
 const lastFeedTs = () => pickFeedTs(feedLog[feedLog.length - 1]?.ts, dbFeedTs);
 // DB 실측 = 다른 폰에서 열어도 실측선이 보이게.
-// shortcut: 최신 2000행(2초 주기 ≈ 67분)만 받는다 — 그보다 오래된 구간은 이 기기 localStorage 기록으로 채움. 며칠치가 필요하면 DB에 분 단위 다운샘플 뷰를 만들어 그걸 읽을 것
+// 최근 2시간은 원본(2초), 그 이전은 1분 집계 뷰 telemetry_1m(supabase/migrations/20261106030000).
+// shortcut: 뷰가 아직 적용 안 된 DB면 원본 최신 2000행(≈67분)만 받고 그 이전은 이 기기 localStorage 기록으로 채움
 async function loadDb(force = false) {
   const now = Date.now();
   if (!force && now - dbFetchAt < 20000) return;
@@ -84,8 +89,17 @@ async function loadDb(force = false) {
     dbFeedTs = f ? Date.parse(f.fed_at) : null;
     const feedTs = lastFeedTs();
     const since = new Date(Math.max(feedTs || 0, now - 7 * 24 * 3600 * 1000)).toISOString();
-    const rows = await sbGet(`telemetry?select=received_at,co2_ppm,co2_status,flags&received_at=gte.${encodeURIComponent(since)}&order=received_at.desc&limit=2000`);
-    dbPts = dbCo2Points(rows);
+    const rawSince = new Date(Math.max(Date.parse(since), now - DB_RAW_MS)).toISOString();
+    const rows = await sbGet(`telemetry?select=received_at,co2_ppm,co2_status,flags&received_at=gte.${encodeURIComponent(rawSince)}&order=received_at.desc&limit=4000`);
+    let agg = [];
+    if (rawSince > since) {
+      try {
+        agg = db1mPoints(await sbGet(`telemetry_1m?select=minute,co2_avg,flagged&minute=gte.${encodeURIComponent(since)}&minute=lt.${encodeURIComponent(rawSince)}&order=minute&limit=10080`));
+      } catch { // 뷰 없음(적용 전) → 원본 최신 2000행으로 폴백
+        agg = dbCo2Points(await sbGet(`telemetry?select=received_at,co2_ppm,co2_status,flags&received_at=gte.${encodeURIComponent(since)}&received_at=lt.${encodeURIComponent(rawSince)}&order=received_at.desc&limit=2000`));
+      }
+    }
+    dbPts = joinAggRaw(agg, dbCo2Points(rows));
     if (rows[0]) dbLast = { t: Date.parse(rows[0].received_at), flags: rows[0].flags };
     if (feedTs && co2Base?.feedTs !== feedTs) { // 이 기기에 기준값이 없으면 DB의 투입 직후 첫 유효값
       const first = dbPts.find((p) => p.t >= feedTs && p.v != null);
@@ -93,13 +107,20 @@ async function loadDb(force = false) {
     }
     dbOk = true;
   } catch { dbOk = false; }
+  loadDbEvents();
   render();
+}
+async function loadDbEvents() {
+  try {
+    dbEv = dbEvents(await sbGet("events?select=id,ts,kind,detail&kind=in.(latched,unlatched,fault,b1_lost,b1_back,reboot)&order=ts.desc&limit=50"));
+  } catch { /* DB 알림 없이도 동작 */ }
 }
 async function pollDbStatus() {
   try {
     const [top] = await sbGet("telemetry?select=received_at,flags&order=received_at.desc&limit=1");
     dbLast = top ? { t: Date.parse(top.received_at), flags: top.flags } : null; dbOk = true;
   } catch { dbOk = false; }
+  await loadDbEvents();
   render();
 }
 const co2All = () => mergeCo2(co2Hist, dbPts);
@@ -129,7 +150,7 @@ function showTab(name) {
   document.querySelector(".topbar").hidden = name === "log"; // 분석 화면은 자체 제목(목업)
   for (const b of document.querySelectorAll(".tabbar [role=tab]")) b.setAttribute("aria-selected", String(b.dataset.tab === (name === "live" ? "home" : name)));
   if (name === "log") loadDb();
-  if (name === "alert") { evSeen = events.length ? events[events.length - 1].ts : evSeen; store.set(KEY_EV_SEEN, String(evSeen)); }
+  if (name === "alert") { const ae = allEvents(); evSeen = ae.length ? Math.max(evSeen, ae[ae.length - 1].ts) : evSeen; store.set(KEY_EV_SEEN, String(evSeen)); }
   render();
   scrollTo(0, 0);
 }
@@ -350,7 +371,8 @@ function render() {
     : !dbLast ? "데이터 저장: DB 연결됨 (저장된 기록 없음)" : `데이터 저장: DB 연결됨 (마지막 저장 ${now - dbLast.t < 120000 ? `${Math.max(0, Math.round((now - dbLast.t) / 1000))}초 전` : ago(now - dbLast.t)})`;
 
   // 알림 배지
-  const unread = events.filter((e) => e.ts > evSeen).length;
+  const evAll = allEvents();
+  const unread = evAll.filter((e) => e.ts > evSeen).length;
   $("evBadge").hidden = !unread || curTab === "alert";
   $("evBadge").textContent = unread > 9 ? "9+" : String(unread);
 
@@ -387,8 +409,8 @@ function render() {
     liveGraph($("gLive"), pts, unit, isCo2 ? 20 : 0.5, d, now);
   }
   if (curTab === "alert") {
-    $("evEmpty").hidden = events.length > 0;
-    $("evList").replaceChildren(...events.slice().reverse().map((e) => {
+    $("evEmpty").hidden = evAll.length > 0;
+    $("evList").replaceChildren(...evAll.slice().reverse().map((e) => {
       const li = document.createElement("li");
       li.className = `ev ${e.kind}`;
       li.append(Object.assign(document.createElement("span"), { textContent: e.text }),
@@ -400,7 +422,7 @@ function render() {
   for (const b of document.querySelectorAll("#feedBtns button, #homeFeed button, #offBtn, #autoBtn, #ecoBtn")) b.disabled = dis;
 }
 
-$("clearEv").addEventListener("click", () => { events = []; store.set(KEY_EV, "[]"); render(); });
+$("clearEv").addEventListener("click", () => { events = []; store.set(KEY_EV, "[]"); evCleared = Date.now(); store.set("oink.app.events.cleared", String(evCleared)); render(); });
 function tapCard(el, fn) {
   el.addEventListener("click", fn);
   el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });

@@ -272,3 +272,55 @@ export function dqBadge(flags) {
   if (fl.includes("co2_ppm:warming")) return "예열 중";
   return "";
 }
+
+// ---- DB 1분 집계 뷰(telemetry_1m) + DB 이벤트 ----
+export const DB_RAW_MS = 2 * 3600 * 1000; // 최근 2시간은 원본(2초), 그 이전은 1분 집계
+// telemetry_1m 행 → CO₂ 점. 평균이 없거나(정상 행 없음) 2분 넘게 빈 분은 선 끊기
+export function db1mPoints(rows, gapMs = 120000) {
+  const out = [];
+  let prevT = null;
+  const sorted = (Array.isArray(rows) ? rows : []).map((r) => ({ t: Date.parse(r.minute), v: r.co2_avg == null ? null : Number(r.co2_avg), flagged: r.flagged > 0 }))
+    .filter((r) => Number.isFinite(r.t)).sort((a, b) => a.t - b.t);
+  for (const r of sorted) {
+    const last = out[out.length - 1];
+    if (prevT != null && r.t - prevT > gapMs && last && last.v != null) out.push({ t: r.t - 1, v: null });
+    if (r.v == null || !Number.isFinite(r.v)) { if (out.length && out[out.length - 1].v != null) out.push({ t: r.t, v: null }); }
+    else out.push({ t: r.t, v: Math.round(r.v), flagged: r.flagged });
+    prevT = r.t;
+  }
+  return out;
+}
+// 1분 집계 점(오래된 구간) + 원본 점(최근). 원본이 덮는 시각 이후의 집계 점은 버린다
+export function joinAggRaw(agg, raw) {
+  const lo = raw.find((p) => Number.isFinite(p.t))?.t;
+  if (lo == null) return agg.slice();
+  const head = agg.filter((p) => p.t < lo);
+  if (head.length && head[head.length - 1].v != null) head.push({ t: lo - 1, v: null }); // 경계는 끊어 보간처럼 보이지 않게
+  return [...head, ...raw];
+}
+// DB events → 알림 항목. 다른 폰에서도 같은 기록이 보이게(id로 중복 제거)
+const DB_EV_KINDS = ["latched", "unlatched", "fault", "b1_lost", "b1_back", "reboot"];
+export function dbEventText(e) {
+  const d = e?.detail || {};
+  switch (e?.kind) {
+    case "latched": return `과열 차단(래치)${d.fault_text ? ` — ${d.fault_text}` : ""}`;
+    case "unlatched": return "과열 차단이 풀렸어요";
+    case "fault": return d.to ? `기기 상태: ${d.to}` : "기기 오류가 해제됐어요";
+    case "b1_lost": return "돼지머리 센서 신호가 끊겼어요";
+    case "b1_back": return "돼지머리 센서 신호가 다시 들어와요";
+    case "reboot": return "Oink 본체가 다시 시작됐어요";
+    default: return "";
+  }
+}
+export function dbEvents(rows) {
+  return (Array.isArray(rows) ? rows : []).filter((e) => DB_EV_KINDS.includes(e?.kind))
+    .map((e) => ({ ts: Date.parse(e.ts), kind: `db_${e.kind}`, text: dbEventText(e), dbId: e.id }))
+    .filter((e) => Number.isFinite(e.ts) && e.text);
+}
+// 로컬 알림 + DB 알림 시간순 병합(같은 dbId는 하나만), 최근 EVENT_MAX개
+export function mergeEvents(local, db) {
+  const seen = new Set();
+  return [...(Array.isArray(local) ? local : []), ...(Array.isArray(db) ? db : [])]
+    .filter((e) => { if (e.dbId == null) return true; if (seen.has(e.dbId)) return false; seen.add(e.dbId); return true; })
+    .sort((a, b) => a.ts - b.ts).slice(-EVENT_MAX);
+}
