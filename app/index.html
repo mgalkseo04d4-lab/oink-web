@@ -313,11 +313,32 @@
     </section>
   </main>
   <dialog id="co2Alarm" class="alarm" role="alertdialog" aria-modal="true" aria-labelledby="co2AlarmT" aria-describedby="co2AlarmD">
-    <h2 id="co2AlarmT">알림!</h2>
+    <h2 id="co2AlarmT" tabindex="-1" autofocus>알림!</h2>
     <p id="co2AlarmD">비이상적인 수치 변화를 감지했습니다.<br>설명서를 확인하시겠습니까?</p>
     <div class="alarm-btns">
-      <button type="button" id="co2AlarmOk" class="alarm-ok" autofocus>확인</button>
+      <button type="button" id="co2AlarmOk" class="alarm-ok">확인</button>
       <button type="button" id="co2AlarmClose" class="alarm-close">닫기</button>
+    </div>
+  </dialog>
+  <dialog id="manual" class="mg-dialog" aria-labelledby="manualT">
+    <div class="mg-card">
+      <button type="button" id="manualX" class="mg-x" aria-label="닫기"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <h2 id="manualT" class="mg-title" tabindex="-1" autofocus>우리집 미생물 관리법</h2>
+      <div class="mg-scroll">
+        <h3 class="mg-sub">평소에는 이렇게 관리해요</h3>
+        <ul class="mg-dots">
+          <li>음식물은 국물과 기름을 빼고, 기기의 하루 권장량 안에서 넣어 주세요.</li>
+          <li>뼈, 조개껍데기, 비닐은 넣지 마세요.</li>
+        </ul>
+        <h3 class="mg-sub">수치 변화 알림이 뜨면</h3>
+        <ol class="mg-nums">
+          <li>음식물을 더 넣기 전에 <strong>최근 투입 기록</strong>을 확인해 주세요. 평소보다 많이 넣었거나 국물이 많았는지 살펴보세요.</li>
+          <li>홈 화면에서 <strong>Oink 연결 상태</strong>와 <strong>히터 표시</strong>를 확인해 주세요.</li>
+          <li>알림이 반복되면 <strong>알림이 뜬 시각</strong>과 <strong>최근 투입 내용</strong>을 적어 기기 지원팀에 문의해 주세요.</li>
+        </ol>
+        <p class="mg-note">물 보충이나 미생물 추가가 필요할 때는 기기 사용설명서를 따라 주세요.</p>
+      </div>
+      <button type="button" id="manualClose" class="mg-close">닫기</button>
     </div>
   </dialog>
 </body>

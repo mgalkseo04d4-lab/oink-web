@@ -30,7 +30,6 @@ const KEY_AMP = "oink.app.amp";
 const KEY_DEMO = "oink.app.demo";
 const KEY_PREHOT = "oink.app.prehot"; // 뜨거운 음식물 감지 직전 히터 모드(복귀 때 ECO 유지용)
 const KEY_HOT = "oink.app.hot";      // 뜨거운 음식물 감지 상태(앱을 다시 열어도 복귀 판단 이어짐)
-const MANUAL_URL = "manual.html";
 const BROKER = "wss://o9f10aca.ala.asia-southeast1.emqxsl.com:8084/mqtt"; // 주소 고정(로그인 화면에 칸 없음)
 // Supabase(PostgREST 직접 fetch). 공개(publishable) 키 = anon 권한: 읽기 + feed_log INSERT만(RLS). 비밀값·service_role은 앱에 두지 않는다
 const SB_URL = "https://vjidekvsgernbqdhimnu.supabase.co";
@@ -63,9 +62,8 @@ let pendingReset = null; // 과열 차단 해제 { id, timer }
 let preHot = store.get(KEY_PREHOT) || null;
 const MODE_NAME = { off: "히터 끄기", auto: "자동 모드", eco: "🌱 에코 절전" };
 let toastTimer = null;
-// CO₂ 알림 팝업: 지금 기준 이상인지. 설명서에서 돌아와 다시 뜨지 않게 이 탭 동안 유지
+// CO₂ 알림 팝업: 지금 기준 이상인지
 let co2High = false;
-try { co2High = sessionStorage.getItem("oink.co2High") === "1"; } catch { /* 저장 불가여도 동작 */ }
 let lastCo2Save = 0;
 let feedLog = [];
 let events = [];
@@ -556,7 +554,6 @@ function onMessage(topic, buf) {
     if (!$("splash")) { // 시작 화면 위로 뜨지 않게, 앱에 들어온 뒤부터 판정
       const a = co2AlarmStep(co2High, b1);
       co2High = a.high;
-      try { sessionStorage.setItem("oink.co2High", co2High ? "1" : "0"); } catch { /* 저장 불가여도 동작 */ }
       if (a.show && !$("co2Alarm").open) $("co2Alarm").showModal();
     }
     const keep = (h) => h.filter((p) => gw.lastSeen - p.t < 72 * 3600 * 1000);
@@ -607,8 +604,10 @@ $("toast").addEventListener("click", () => { $("toast").hidden = true; });
 $("co2AlarmClose").addEventListener("click", () => $("co2Alarm").close());
 $("co2AlarmOk").addEventListener("click", () => {
   $("co2Alarm").close();
-  location.href = MANUAL_URL;
+  $("manual").showModal();
 });
+for (const id of ["manualX", "manualClose"]) $(id).addEventListener("click", () => $("manual").close());
+$("manual").addEventListener("click", (e) => { if (e.target === $("manual")) $("manual").close(); }); // 카드 밖(배경) 탭
 const onFeed = (e) => {
   const size = e.target.closest("button")?.dataset.size;
   if (!size || !client?.connected) return;
