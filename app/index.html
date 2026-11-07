@@ -94,6 +94,7 @@
     </symbol>
     <symbol id="t-home" viewBox="0 0 24 24"><path d="M3.2 11.2 L12 3.6 L20.8 11.2 a1.4 1.4 0 0 1 -.9 2.4 H19 V19 a2 2 0 0 1 -2 2 H7 a2 2 0 0 1 -2 -2 V13.6 H4.1 a1.4 1.4 0 0 1 -.9 -2.4 z" style="fill:var(--tf)"/><rect x="10" y="14.5" width="4" height="6.5" rx="1.5" fill="#fff" style="opacity:var(--tdoor)"/><ellipse cx="9" cy="9.6" rx="2.6" ry="1.1" fill="#fff" style="opacity:var(--th)" transform="rotate(-38 9 9.6)"/></symbol>
     <symbol id="t-bars" viewBox="0 0 24 24"><g style="fill:var(--tf)"><rect x="3" y="12" width="5" height="9" rx="2.5"/><rect x="9.5" y="5" width="5" height="16" rx="2.5"/><rect x="16" y="9" width="5" height="12" rx="2.5"/></g><g fill="#fff" style="opacity:var(--th)"><rect x="4.2" y="13.3" width="1.3" height="3.5" rx=".65"/><rect x="10.7" y="6.3" width="1.3" height="4.5" rx=".65"/><rect x="17.2" y="10.3" width="1.3" height="4" rx=".65"/></g></symbol>
+    <symbol id="t-status" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="4.5" style="fill:var(--tf)"/><path d="M6 12.5h3l1.8-3.6 2.6 6.6 1.7-3h2.9" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="t-bell" viewBox="0 0 24 24"><path d="M6 17 V11 a6 6 0 0 1 12 0 V17 l1.8 1.8 H4.2 z" style="fill:var(--tf)"/><circle cx="12" cy="21" r="2" style="fill:var(--tf)"/><ellipse cx="9.4" cy="9.6" rx="1.2" ry="2.4" fill="#fff" style="opacity:var(--th)" transform="rotate(20 9.4 9.6)"/></symbol>
     <symbol id="t-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.6" style="fill:var(--tf)"/><path d="M3.6 21 a8.4 7.6 0 0 1 16.8 0 z" style="fill:var(--tf)"/><ellipse cx="10.2" cy="6.2" rx="1.6" ry="1" fill="#fff" style="opacity:var(--th)"/><ellipse cx="8.5" cy="16.8" rx="2.2" ry=".9" fill="#fff" style="opacity:var(--th)" transform="rotate(-25 8.5 16.8)"/></symbol>
   </svg>
@@ -135,7 +136,7 @@
         <span class="pills"><span id="conn" class="pill"><span class="dot"></span><span id="connText">연결 중</span></span></span>
       </header>
 
-      <!-- 홈: 상태 배너 → 2×2 지표 → 퀵 액션 → 통합 추이(dashboard_wireframe_layout_guide) -->
+      <!-- 홈: 돼지, 말풍선, 작동 상태, CO₂ -->
       <div id="tab-home" class="tab" role="tabpanel" aria-labelledby="tb-home">
         <article class="hero card calm" id="hero">
           <div class="pigwrap"><svg class="fl f1" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f2" aria-hidden="true"><use href="#i-flower"/></svg><svg class="fl f3" aria-hidden="true"><use href="#i-flower"/></svg><svg class="zz" aria-hidden="true"><use href="#i-zz"/></svg><div class="pigsquish" id="pigSquish"><img id="pig" class="pig calm" src="img/pig_base.webp" alt="Oink: 연결 중" width="600" height="443"></div></div>
@@ -145,46 +146,46 @@
 
         <div class="cards" id="homeCards">
           <div class="grid2">
-            <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-go="aTemp" aria-label="심부 온도 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부(심부) 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p class="num"><span id="lvTemp" class="lvl" hidden></span></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real" id="srcTemp" hidden></span> <span class="src dq" id="dqTemp" hidden></span></p></article>
             <article class="card stat tap" id="cCo2" role="button" tabindex="0" data-go="aCo2" aria-label="CO₂ 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>CO₂ 농도</p><p class="big"><span id="vCo2">—</span><small>ppm</small><b id="arCo2" class="arrow"></b></p><p id="nCo2" class="num"></p><p class="num tiny"><span class="src real" id="srcCo2" hidden></span> <span class="src dq" id="dqCo2" hidden></span></p></article>
-            <article class="card stat tap" id="cAct" role="button" tabindex="0" data-go="aAct" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-bars"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
-            <article class="card stat tap" id="cOdor" role="button" tabindex="0" data-go="aOdor" aria-label="냄새 지수 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-leaf"/></svg>냄새 지수</p><p class="big"><span id="vOdorH">—</span></p><p id="nOdorH" class="num">깨끗한 공기 = 1</p><p class="num tiny"><span class="src dq" id="srcOdorH" hidden></span> <span class="src dq" id="odorWarmH" hidden>예열 중</span></p></article>
           </div>
           <p id="offMsg" class="off-msg" role="status" hidden>기기와 연결이 끊겼어요. Wi-Fi 상태를 확인해 주세요</p>
         </div>
 
+
+
+      </div>
+
+      <!-- 상태: 온도·냄새·예측 지표, 투입과 히터 바로가기, 통합 추이 -->
+      <div id="tab-status" class="tab" role="tabpanel" aria-labelledby="tb-status" hidden>
+        <div class="cards" id="statusCards">
+          <div class="grid2">
+            <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-go="aTemp" aria-label="심부 온도 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부(심부) 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p class="num"><span id="lvTemp" class="lvl" hidden></span></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real" id="srcTemp" hidden></span> <span class="src dq" id="dqTemp" hidden></span></p></article>
+            <article class="card stat tap" id="cAct" role="button" tabindex="0" data-go="aAct" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-bars"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
+            <article class="card stat tap" id="cOdor" role="button" tabindex="0" data-go="aOdor" aria-label="냄새 지수 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-leaf"/></svg>냄새 지수</p><p class="big"><span id="vOdorH">—</span></p><p id="nOdorH" class="num">깨끗한 공기 = 1</p><p class="num tiny"><span class="src dq" id="srcOdorH" hidden></span> <span class="src dq" id="odorWarmH" hidden>예열 중</span></p></article>
+          </div>
+        </div>
+        <div class="st-left">
         <div class="quick">
           <button type="button" id="qFeed" class="qa"><b>🍲 음식물 투입 기록</b><small id="qFeedSub">기록 없음</small></button>
           <button type="button" id="qHeat" class="qa"><b>⚡ 히터 모드 변경</b><small id="qHeatSub">연결 안 됨</small></button>
         </div>
         <p id="homeFeedMsg" class="muted center"></p>
-
+        <article class="card" id="feedCard">
+          <p class="kicker">음식물 넣기</p>
+          <div class="row" id="feedBtns">
+            <button type="button" data-size="소">조금</button>
+            <button type="button" data-size="중">보통</button>
+            <button type="button" data-size="대">많이</button>
+          </div>
+          <p id="feedMsg" class="muted"></p>
+          <ul id="feedList" class="list"></ul>
+        </article>
+        </div>
         <article class="card trend" id="trendCard">
           <div class="card-head"><p class="kicker">최근 2시간 CO₂ · 심부 온도</p><button type="button" id="trendMore" class="ghost small">상세 보기 &gt;</button></div>
           <svg id="gTrend" class="spark" viewBox="0 0 320 150" role="img" aria-label="최근 2시간 CO₂(왼쪽 축)와 심부 온도(오른쪽 축)"></svg>
           <p class="legend"><span><i class="lg-real"></i>CO₂ ppm(왼쪽)</span><span><i class="lg-temp"></i>심부 온도 ℃(오른쪽)</span></p>
         </article>
-
-        <dialog id="sheetFeed" class="sheet" aria-labelledby="sheetFeedT">
-          <p class="kicker" id="sheetFeedT">음식물을 얼마나 넣었나요?</p>
-          <div class="row" id="homeFeed">
-            <button type="button" data-size="소">조금</button>
-            <button type="button" data-size="중">보통</button>
-            <button type="button" data-size="대">많이</button>
-          </div>
-          <button type="button" class="ghost wide" data-close>닫기</button>
-        </dialog>
-        <dialog id="sheetHeat" class="sheet" aria-labelledby="sheetHeatT">
-          <p class="kicker" id="sheetHeatT">히터 모드</p>
-          <div class="modes" role="radiogroup" aria-label="히터 모드">
-            <button type="button" class="mode auto" data-mode="auto" role="radio" aria-checked="false"><svg class="m-ic" aria-hidden="true"><use href="#i-heat"/></svg><span class="m-txt"><b>자동</b><small>목표 37℃로 분해를 도와요</small></span><span class="m-val">37℃</span><svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span></button>
-            <button type="button" class="mode eco" data-mode="eco" role="radio" aria-checked="false"><svg class="m-ic" aria-hidden="true"><use href="#i-leaf"/></svg><span class="m-txt"><b>에코 절전<em class="tag">외출·밤</em></b><small>목표 30℃로 낮춰 가동을 줄여요</small></span><span class="m-val">30℃</span><svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span></button>
-            <button type="button" class="mode off" data-mode="off" role="radio" aria-checked="false"><svg class="m-ic" aria-hidden="true"><use href="#i-power"/></svg><span class="m-txt"><b><i class="dot" aria-hidden="true"></i>히터 끄기</b><small>청소·점검용 완전 정지</small></span><span class="m-val">OFF</span><svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span></button>
-          </div>
-          <p id="sheetCmdMsg" class="cmd-msg" aria-live="polite"></p>
-          <p class="hint safe"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>기기 안전 규칙이 항상 우선 · 강제로 켜는 기능은 없어요</span></p>
-          <button type="button" class="ghost wide" data-close>닫기</button>
-        </dialog>
       </div>
 
       <!-- 기록 -->
@@ -215,16 +216,6 @@
           <article class="card stat" id="aOdor"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p id="nOdor" class="num">깨끗한 공기 = 1</p><p class="num tiny"><span class="src dq" id="srcOdor" hidden></span> <span class="src dq" id="odorWarm" hidden>예열 중</span></p></article>
           <article class="card stat" id="cProg"><p class="kicker">분해 진행 <span class="badge demo" hidden>시연 배속</span></p><div class="bar"><div id="progBar"></div></div><p id="progText" class="num">음식물을 넣으면 보여요</p><p id="progAct" class="num act"></p><p id="progTrend" class="num"></p><p class="num tiny"><span class="src model">모델 추정치</span></p></article>
         </div>
-        <article class="card">
-          <p class="kicker">음식물 넣기</p>
-          <div class="row" id="feedBtns">
-            <button type="button" data-size="소">조금</button>
-            <button type="button" data-size="중">보통</button>
-            <button type="button" data-size="대">많이</button>
-          </div>
-          <p id="feedMsg" class="muted"></p>
-          <ul id="feedList" class="list"></ul>
-        </article>
       </div>
 
       <!-- 알림 -->
@@ -304,9 +295,32 @@
         <button type="button" id="logout" class="ghost wide">로그아웃</button>
       </div>
 
+        <dialog id="sheetFeed" class="sheet" aria-labelledby="sheetFeedT">
+          <p class="kicker" id="sheetFeedT">음식물을 얼마나 넣었나요?</p>
+          <div class="row" id="homeFeed">
+            <button type="button" data-size="소">조금</button>
+            <button type="button" data-size="중">보통</button>
+            <button type="button" data-size="대">많이</button>
+          </div>
+          <button type="button" class="ghost wide" data-close>닫기</button>
+        </dialog>
+        <dialog id="sheetHeat" class="sheet" aria-labelledby="sheetHeatT">
+          <p class="kicker" id="sheetHeatT">히터 모드</p>
+          <div class="modes" role="radiogroup" aria-label="히터 모드">
+            <button type="button" class="mode auto" data-mode="auto" role="radio" aria-checked="false"><svg class="m-ic" aria-hidden="true"><use href="#i-heat"/></svg><span class="m-txt"><b>자동</b><small>목표 37℃로 분해를 도와요</small></span><span class="m-val">37℃</span><svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span></button>
+            <button type="button" class="mode eco" data-mode="eco" role="radio" aria-checked="false"><svg class="m-ic" aria-hidden="true"><use href="#i-leaf"/></svg><span class="m-txt"><b>에코 절전<em class="tag">외출·밤</em></b><small>목표 30℃로 낮춰 가동을 줄여요</small></span><span class="m-val">30℃</span><svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span></button>
+            <button type="button" class="mode off" data-mode="off" role="radio" aria-checked="false"><svg class="m-ic" aria-hidden="true"><use href="#i-power"/></svg><span class="m-txt"><b><i class="dot" aria-hidden="true"></i>히터 끄기</b><small>청소·점검용 완전 정지</small></span><span class="m-val">OFF</span><svg class="m-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="m-spin" aria-hidden="true"></span></button>
+          </div>
+          <p id="sheetCmdMsg" class="cmd-msg" aria-live="polite"></p>
+          <p class="hint safe"><svg aria-hidden="true"><use href="#i-shield"/></svg><span>기기 안전 규칙이 항상 우선 · 강제로 켜는 기능은 없어요</span></p>
+          <button type="button" class="ghost wide" data-close>닫기</button>
+        </dialog>
+
       <nav class="tabbar" role="tablist" aria-label="화면">
         <button type="button" role="tab" id="tb-home" aria-controls="tab-home" aria-selected="true" data-tab="home">
           <svg aria-hidden="true"><use href="#t-home"/></svg><span>홈</span></button>
+        <button type="button" role="tab" id="tb-status" aria-controls="tab-status" aria-selected="false" data-tab="status">
+          <svg aria-hidden="true"><use href="#t-status"/></svg><span>상태</span></button>
         <button type="button" role="tab" id="tb-log" aria-controls="tab-log" aria-selected="false" data-tab="log">
           <svg aria-hidden="true"><use href="#t-bars"/></svg><span>분석</span></button>
         <button type="button" role="tab" id="tb-alert" aria-controls="tab-alert" aria-selected="false" data-tab="alert">

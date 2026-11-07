@@ -355,7 +355,7 @@ function render() {
   $("nOdor").textContent = odorNote;
   $("nOdorH").textContent = hasOdorIdx ? `${odorWord(b1)} · ${odorNote}` : odorNote;
   // 진짜 끊김(게이트웨이·브로커)만 카드 딤. #1만 끊긴 대체 제어는 online이라 딤 안 함
-  $("homeCards").classList.toggle("dim", !online); $("offMsg").hidden = online;
+  $("homeCards").classList.toggle("dim", !online); $("statusCards").classList.toggle("dim", !online); $("offMsg").hidden = online;
 
   const feedTs = lastFeedTs();
   const p = decompProgress(feedTs, now, speed());
@@ -451,7 +451,7 @@ function render() {
       return li;
     }));
   }
-  if (curTab === "home") trendGraph($("gTrend"), co2All(), mergeCo2(tempHist.map((q) => ({ t: q.t, ppm: q.c })), dbTemp), now);
+  if (curTab === "status") trendGraph($("gTrend"), co2All(), mergeCo2(tempHist.map((q) => ({ t: q.t, ppm: q.c })), dbTemp), now);
   if (curTab === "alert") {
     $("evEmpty").hidden = evAll.length > 0;
     $("evList").replaceChildren(...evAll.slice().reverse().map((e) => {
@@ -471,7 +471,7 @@ function tapCard(el, fn) {
   el.addEventListener("click", fn);
   el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
 }
-for (const el of document.querySelectorAll("#homeCards .tap")) tapCard(el, () => showTab("log", el.dataset.go));
+for (const el of document.querySelectorAll("#app .tap[data-go]")) tapCard(el, () => showTab("log", el.dataset.go));
 $("trendMore").addEventListener("click", () => showTab("log"));
 // 퀵 액션 시트(<dialog>): 바깥(배경)·닫기 누르면 닫힘. 투입 기록은 기존 onFeed, 히터는 기존 sendHeater 그대로
 for (const d of document.querySelectorAll("dialog.sheet")) d.addEventListener("click", (e) => { if (e.target === d || e.target.closest("[data-close]")) d.close(); });

@@ -1,5 +1,5 @@
 // 앱 셸만 캐시(cache-first). MQTT(wss)·unpkg·Supabase 등 외부 요청은(다른 origin → 네트워크 전용) 건드리지 않는다.
-const CACHE = "oink-shell-v36";
+const CACHE = "oink-shell-v37";
 const SHELL = ["./", "index.html", "manual.html", "app.js", "logic.mjs", "sound.js", "style.css", "manifest.webmanifest",
   "img/pig_base.webp", "img/pig_happy.webp", "img/pig_angry.webp", "img/pig_base_lg.webp",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-512-maskable.png", "icons/apple-touch-icon.png"];
