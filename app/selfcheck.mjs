@@ -1,7 +1,7 @@
 // node webapp/selfcheck.mjs — logic.mjs 판정 확인
 import assert from "node:assert/strict";
 import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
-  homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
+  co2MoodBad, homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, co2Valid, tempCardValue, odorCard, hotHeaterGuard, latchStatus,
@@ -22,6 +22,9 @@ assert.equal(mood({ ...live, b1: { co2_status: 1, odor_index: 2.3 }, slope: 5 })
 assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 600, odor_index: 1.1 }, slope: 5 }), "busy");
 assert.equal(mood({ ...live, b1: { co2_status: 0, odor_index: 1.1 }, slope: 5 }), "calm");
 assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 600, odor_index: 1.1 }, slope: -3 }), "calm");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 999 } }), "calm");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 1000 } }), "smelly");
+assert.equal(mood({ ...live, online: false, b1: { co2_status: 1, co2_ppm: 1000 } }), "sleep"); // 끊김 우선
 
 // 분해 진행(논문 경향 곡선: 정점 72h, 7일 누적=100%)
 const H = 3600 * 1000, f0 = now;
@@ -55,6 +58,15 @@ assert.deepEqual(homeState({ ...L, b1: { temp1_c: TEMP_ALERT, co2_status: 1, co2
 assert.deepEqual(homeState({ ...L, b1: { temp1_c: 30, co2_status: 1, co2_ppm: CO2_ALERT } }).reasons, ["co2"]);
 assert.deepEqual(homeState({ ...L, b1: { temp1_c: 30, co2_status: 0, co2_ppm: 1600 } }).reasons, ["co2"]); // 예열(0)도 실측값
 assert.equal(homeState({ ...L, b1: { temp1_c: 30, co2_status: 2, co2_ppm: 1600 } }).state, "calm"); // 센서 오류(2)는 무시
+assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 999 }), false); // 표정 기준 경계
+assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 1000 }), true);
+assert.equal(co2MoodBad({ co2_status: 2, co2_ppm: 1600 }), false);
+assert.equal(co2MoodBad({ co2_status: 3, co2_ppm: 1600 }), false);
+assert.equal(co2MoodBad(null), false);
+assert.equal(homeState({ ...L, b1: { temp1_c: 30, co2_status: 1, co2_ppm: 1000 } }).state, "calm"); // 경고는 1500 그대로
+assert.equal(homeState({ ...L, b1: { temp1_c: 30, co2_status: 1, co2_ppm: CO2_ALERT - 1 } }).state, "calm"); // 경계 바로 아래
+assert.equal(homeState({ ...L, b1: { temp1_c: 30, co2_status: 3, co2_ppm: 1600 } }).state, "calm"); // 범위 초과(3)는 무시
+assert.equal(homeState({ ...L, online: false, b1: { temp1_c: 30, co2_status: 1, co2_ppm: 1600 } }).state, "sleep"); // 끊김이 CO₂ 경보보다 우선
 assert.equal(homeText(homeState({ ...L, b1: { temp1_c: 45, co2_status: 1, co2_ppm: 1600 } })), "너무 덥고 숨이 막혀요!");
 const calm = { state: "calm", reasons: [], gwOnline: true }, alert = { state: "alert", reasons: ["hot"], gwOnline: true };
 assert.equal(stateEvents(null, calm, 1).length, 0);

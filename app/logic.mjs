@@ -19,8 +19,13 @@ export const co2Valid = (b1) => Number.isFinite(b1?.co2_ppm) && b1.co2_ppm >= 0 
 export const co2Warm = (b1) => co2Valid(b1) && b1.co2_status === 0; // 값은 보여 주고 "예열 중" 표시만
 
 // 캐릭터 상태: sleep | smelly | busy | calm
+// 표정 전용 CO₂ 기준. 경고 판정은 CO2_ALERT(1500) 그대로
+export const CO2_MOOD = 1000;
+export const co2MoodBad = (b1) => co2Valid(b1) && b1.co2_ppm >= CO2_MOOD;
+
 export function mood({ online, lastSeen, now, b1, slope }) {
   if (!online || !lastSeen || now - lastSeen > STALE_MS || !b1) return "sleep";
+  if (co2MoodBad(b1)) return "smelly";
   if (typeof b1.odor_index === "number" && b1.odor_index >= 2) return "smelly";
   if (co2Valid(b1) && slope != null && slope > 0) return "busy";
   return "calm";

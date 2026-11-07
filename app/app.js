@@ -1,6 +1,6 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { play, soundOn, setSoundOn } from "./sound.js";
-import { rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
+import { co2MoodBad, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, tempCardValue, odorCard, LOCAL_TARGET_C,
@@ -301,7 +301,7 @@ function render() {
   $("hero").className = `hero card ${hs.state}${ecoHome ? " eco" : ""}${latchHome ? " latch" : ""}`;
   // 표정 이미지(판정은 logic 그대로): 정상=웃음, 이상=화남, 대기·데이터 없음=기본, 끊김=기본+회색
   const linked = !!(client?.connected && gw.online);
-  const face = ecoHome || latchHome ? "base" : hs.state === "calm" ? "happy" : hs.state === "alert" ? "angry" : "base";
+  const face = hs.state === "alert" || (hs.state !== "sleep" && co2MoodBad(b1)) ? "angry" : ecoHome || latchHome ? "base" : hs.state === "calm" ? "happy" : "base";
   const pigCls = `pig ${hs.state}${hs.state === "sleep" && !linked ? " off" : ""}`;
   const pig = $("pig");
   if (pig.dataset.face !== face) {
