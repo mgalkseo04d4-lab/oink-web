@@ -1,6 +1,6 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { play, soundOn, setSoundOn } from "./sound.js";
-import { gapSegments, niceTicks, tftMood, rxLogStep, rxLive, rxLine, goodMotionOf, pigStill, fillDemoSensors, co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
+import { parseDemoCo2, applyDemoCo2, gapSegments, niceTicks, tftMood, rxLogStep, rxLive, rxLine, goodMotionOf, pigStill, fillDemoSensors, co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, tempCardValue, odorCard, LOCAL_TARGET_C,
@@ -12,6 +12,7 @@ const T = {
   feed: "oink/app/feed_log",
   cmd: "oink/gateway/cmd",
   ack: "oink/gateway/cmd/ack", // firmware2: {"id","ok","msg"}
+  demoCo2: "oink/demo/co2", // co2.html 시연 조작. 빈 retained = 실측 복귀
 };
 // 현재 2보드(firmware2/oink2_pig)는 가짜값 코드가 없어 #1 값은 모두 실측. true는 가짜값을 쓰는 펌웨어를 붙일 때만.
 const FAKE_B1 = false;
@@ -50,6 +51,7 @@ let client = null;
 let gw = { online: false, tele: null, lastSeen: 0 };
 // shortcut: 실측 CO₂는 이 기기 localStorage에만 쌓인다(앱이 열려 있던 동안만) — 기기 간 공유·빈틈 없는 기록은 서버 저장소 필요
 const loadJson = (k, d) => { try { const v = JSON.parse(store.get(k) || "null"); return v ?? d; } catch { return d; } };
+let demoCo2 = null; // 시연 조작 값(없으면 null)
 let co2Hist = loadJson(KEY_CO2, []).filter((p) => Number.isFinite(p?.t) && Number.isFinite(p?.ppm));
 let tempHist = [];
 let rxSt = { seq: null, lastRx: 0, rx: null, log: [] }; // #1→#3 수신 로그(메모리에만)
@@ -339,7 +341,7 @@ function render() {
   const localCtrl = b2?.ctrl_src === "local"; // 펌웨어가 목표 40℃ 고정, 설정한 목표는 #1 복귀 후 적용
   const showTgt = ctrlTargetOf(b2);
   const co2v = co2CardValue(b1), co2ok = co2v != null;
-  setSrcBadge($("srcCo2"), co2v);
+  setSrcBadge($("srcCo2"), gw.tele?._demo?.includes("co2") ? null : co2v); // 조작 중에는 출처 배지 없음
   $("vCo2").textContent = co2ok ? Math.round(co2v) : "—";
   $("nCo2").textContent = !b1 ? (localCtrl ? "#1 끊김" : "연결 안 됨") : !co2ok ? "센서 준비 중" : hs.reasons.includes("co2") ? "높아요!" : "좋아요";
   $("cCo2").classList.toggle("hot", hs.reasons.includes("co2"));
@@ -557,6 +559,13 @@ function notify(kind, text) {
 
 function onMessage(topic, buf) {
   const raw = buf.toString();
+  if (topic === T.demoCo2) { // 연결 상태(gw)는 건드리지 않는다. 다음 프레임(2초 안)부터 적용
+    const v = raw ? parseDemoCo2(raw) : null;
+    if (raw && v == null) return;
+    demoCo2 = v;
+    if (v == null) co2Hist = co2Hist.filter((p) => !p.demo);
+    render(); return;
+  }
   if (topic === T.feed) { // 빈 retained = 기록 없음
     try { const a = raw ? JSON.parse(raw) : []; if (Array.isArray(a)) feedLog = a; } catch { /* 무시 */ }
     render(); return;
@@ -586,7 +595,7 @@ function onMessage(topic, buf) {
         Object.assign(document.createElement("span"), { textContent: rxLine(e) }));
       return li;
     }));
-    msg = fillDemoSensors(msg);
+    msg = applyDemoCo2(fillDemoSensors(msg), demoCo2);
     gw.tele = msg; gw.online = true; gw.lastSeen = Date.now();
     const b1 = msg.board1;
     if (!$("splash")) { // 시작 화면 위로 뜨지 않게, 앱에 들어온 뒤부터 판정
@@ -596,18 +605,19 @@ function onMessage(topic, buf) {
     }
     const keep = (h) => h.filter((p) => gw.lastSeen - p.t < 72 * 3600 * 1000);
     const now = gw.lastSeen;
-    if (valid(b1)) co2Hist = capPoints(keep([...co2Hist, { t: now, ppm: b1.co2_ppm }]));
+    const demoCo2Now = !!msg._demo?.includes("co2"); // 조작 값은 화면에만. 저장·투입 기준·뜨거운 음식물 판정에 넣지 않는다
+    if (valid(b1)) co2Hist = capPoints(keep([...co2Hist, demoCo2Now ? { t: now, ppm: b1.co2_ppm, demo: true } : { t: now, ppm: b1.co2_ppm }]));
     const demoTemp = !!msg._demo?.includes("temp1"); // 시연값은 그래프에만. 뜨거운 음식물 판정과 히터 명령에는 쓰지 않는다
     if (Number.isFinite(b1?.temp1_c)) tempHist = keep([...tempHist, { t: now, c: b1.temp1_c, demo: demoTemp }]).filter((p) => now - p.t <= DB_RAW_MS); // 홈 통합 추이 2시간
     const b2 = msg.board2;
     const feedTs = lastFeedTs();
     if (feedTs && co2Base?.feedTs !== feedTs) { // 투입 직후 첫 유효값을 기준으로
-      const first = co2Hist.find((p) => p.t >= feedTs);
+      const first = co2Hist.find((p) => p.t >= feedTs && !p.demo);
       if (first) { co2Base = { feedTs, base: first.ppm }; store.set(KEY_BASE, JSON.stringify(co2Base)); }
     }
-    if (now - lastCo2Save > 30000) { lastCo2Save = now; store.set(KEY_CO2, JSON.stringify(co2Hist)); }
+    if (now - lastCo2Save > 30000) { lastCo2Save = now; store.set(KEY_CO2, JSON.stringify(co2Hist.filter((p) => !p.demo))); }
     if (client?.connected) {
-      const r = hotFoodStep(hotSt, { series: { t1: tempHist.filter((q) => !q.demo) }, co2s: co2Hist, now, cur: { t1: demoTemp ? null : b1?.temp1_c } });
+      const r = hotFoodStep(hotSt, { series: { t1: tempHist.filter((q) => !q.demo) }, co2s: co2Hist.filter((p) => !p.demo), now, cur: { t1: demoTemp ? null : b1?.temp1_c } });
       const g = hotHeaterGuard(r, b2, now - lastHoldSend >= HOLD_RESEND_MS);
       if (g.st !== hotSt) { hotSt = g.st; store.set(KEY_HOT, JSON.stringify(hotSt)); }
       if (g.blocked) notify("hot_on", HOT_MSG_BLOCKED);
@@ -833,7 +843,7 @@ function oinkConnect(url, username, password, auto = false) {
       else store.del(KEY_LOGIN);
       $("login").hidden = true; $("app").hidden = false; $("pass").value = DEFAULT_PASS;
     }
-    c.subscribe([T.status, T.tele, T.feed, T.ack], { qos: 1 });
+    c.subscribe([T.status, T.tele, T.feed, T.ack, T.demoCo2], { qos: 1 });
     render();
   });
   c.on("message", onMessage);

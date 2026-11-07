@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시연용 CO₂ 조작</title>
+<style>
+:root { --bg:#FFF6E5; --card:#fff; --ink:#3A2A2A; --mute:#6B5A5A; --pink:#C2305C; --line:#F3D9E0; --ok:#0F7A70; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#1F1A1A; --card:#2B2424; --ink:#F6EDED; --mute:#C9BABA; --pink:#C2305C; --line:#4A3C3C; --ok:#5FD3C7; } }
+:root[data-theme="dark"] { --bg:#1F1A1A; --card:#2B2424; --ink:#F6EDED; --mute:#C9BABA; --pink:#C2305C; --line:#4A3C3C; --ok:#5FD3C7; }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,"Malgun Gothic",sans-serif; }
+main { max-width:480px; margin:auto; background:var(--card); border:1px solid var(--line); border-radius:20px; padding:20px; }
+h1 { font-size:22px; margin:0 0 4px; }
+p { margin:0 0 12px; color:var(--mute); }
+output { display:block; font-size:44px; font-weight:800; line-height:1.2; color:var(--ink); }
+#conn.on { color:var(--ok); }
+input[type=range] { width:100%; height:44px; accent-color:var(--pink); }
+input[type=number] { width:100%; font-size:20px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:transparent; color:inherit; }
+.row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0; }
+button { min-height:48px; font:inherit; font-weight:700; border:1px solid var(--line); border-radius:12px; background:transparent; color:inherit; cursor:pointer; }
+button.go { width:100%; margin-top:8px; background:var(--pink); border-color:var(--pink); color:#fff; }
+button.back { width:100%; margin-top:8px; }
+button:disabled { opacity:.5; cursor:default; }
+</style>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>시연용 CO₂ 조작</h1>
+  <p id="conn" role="status">브로커 연결 중</p>
+  <p>앱에 적용 중인 값</p>
+  <output id="cur" aria-live="polite">—</output>
+  <p>앱 화면에는 2초 안에 반영됩니다. 끝나면 꼭 "실측으로 복귀"를 누르세요.</p>
+  <label for="range">값 고르기(ppm)</label>
+  <input id="range" type="range" min="0" max="5000" step="1" value="400">
+  <input id="num" type="number" min="0" max="5000" step="1" value="400" aria-label="CO₂ ppm 직접 입력">
+  <div class="row" id="quick"></div>
+  <button class="go" id="send" disabled>이 값으로 적용</button>
+  <button class="back" id="back" disabled>실측으로 복귀</button>
+</main>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const TOPIC = "oink/demo/co2";
+const valid = (v) => Number.isInteger(v) && v >= 0 && v <= 5000;
+const setVal = (v) => { $("range").value = v; $("num").value = v; };
+let c;
+function publish(payload) {
+  if (c?.connected) c.publish(TOPIC, payload, { qos: 1, retain: true }, (e) => { if (e) $("conn").textContent = `발행 실패: ${e.message}`; });
+}
+const sendVal = (v) => { if (valid(v)) publish(JSON.stringify({ co2_ppm: v })); };
+for (const v of [400, 499, 500, 700, 1500, 1600]) {
+  const b = document.createElement("button");
+  b.textContent = v; b.disabled = true;
+  b.addEventListener("click", () => { setVal(v); sendVal(v); });
+  $("quick").append(b);
+}
+$("range").addEventListener("input", () => { $("num").value = $("range").value; });
+$("num").addEventListener("input", () => { $("range").value = $("num").value; });
+$("send").addEventListener("click", () => sendVal(Number($("num").value)));
+$("back").addEventListener("click", () => publish(""));
+const setOn = (on) => {
+  $("conn").textContent = on ? "브로커 연결됨" : "브로커 연결 끊김, 재연결 중";
+  $("conn").className = on ? "on" : "";
+  for (const b of document.querySelectorAll("button")) b.disabled = !on;
+};
+window.addEventListener("load", () => {
+  c = window.mqtt.connect("wss://o9f10aca.ala.asia-southeast1.emqxsl.com:8084/mqtt", {
+    username: "oink-web", password: "oink-web",
+    clientId: `oink-co2-${Math.random().toString(16).slice(2, 10)}`, connectTimeout: 8000, reconnectPeriod: 3000,
+  });
+  c.on("connect", () => { setOn(true); c.subscribe(TOPIC, { qos: 1 }); });
+  c.on("close", () => setOn(false));
+  c.on("message", (_t, buf) => {
+    const raw = buf.toString();
+    let v = null;
+    try { v = raw ? JSON.parse(raw).co2_ppm : null; } catch { /* 무시 */ }
+    $("cur").textContent = valid(v) ? `${v} ppm` : "실측값 사용 중";
+    if (valid(v)) setVal(v);
+  });
+});
+</script>
+</body>
+</html>

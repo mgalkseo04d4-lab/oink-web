@@ -1,6 +1,6 @@
 // node webapp/selfcheck.mjs — logic.mjs 판정 확인
 import assert from "node:assert/strict";
-import { gapSegments, niceTicks, co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
+import { parseDemoCo2, applyDemoCo2, gapSegments, niceTicks, co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
   goodMotionOf, pigStill, co2MoodBad, co2Face, co2AlarmStep, CO2_MOOD, homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
@@ -409,5 +409,16 @@ assert.deepEqual(dbTempPoints(null), []);
   assert.deepEqual(niceTicks(0, 10, 3), [0, 5, 10]);
   assert.ok(niceTicks(19.4, 39).every((v, i, a) => i === 0 || v > a[i - 1]));
   assert.equal(niceTicks(5, 5).length > 1, true);
+}
+{
+  assert.equal(parseDemoCo2('{"co2_ppm":520}'), 520);
+  for (const bad of ["x", "", "null", '{"co2_ppm":-1}', '{"co2_ppm":5001}', '{"co2_ppm":"520"}']) assert.equal(parseDemoCo2(bad), null);
+  const t = { board1: { seq: 7, co2_ppm: null, co2_status: 255, err: 3, gas_v: 3.141 } };
+  const o = applyDemoCo2(t, 520);
+  assert.equal(o.board1.co2_ppm, 520); assert.equal(o.board1.co2_status, 1); assert.equal(o.board1.err, 1);
+  assert.equal(o.board1.seq, 7); assert.equal(o.board1.gas_v, 3.141); assert.ok(o._demo.includes("co2"));
+  assert.equal(t.board1.co2_ppm, null); // 원본 불변
+  assert.equal(applyDemoCo2(t, null), t); assert.deepEqual(applyDemoCo2({ board_ok: true }, 520), { board_ok: true }); // #1 없음은 그대로
+  assert.equal(co2Face("calm", applyDemoCo2(t, 499).board1), "happy"); assert.equal(co2Face("calm", applyDemoCo2(t, 500).board1), "angry");
 }
 console.log("selfcheck ok");

@@ -411,6 +411,7 @@ export const srcBadge = (val, label) => (Number.isFinite(val) ? label : "");
 // 실제 히터가 있는 보드(planb 아님)는 가짜 온도가 과열을 가리면 안 되므로 적용하지 않는다.
 export const DEMO_VALUES = { temp1_c: 36.5, odor_index: 1.1, gas_v: 1.2, temp2_c: 37 };
 const ERR_TEMP = 1 << 0; // Oink2Proto.h OINK_ERR_TEMP
+const ERR_CO2 = 1 << 1; // Oink2Proto.h OINK_ERR_CO2
 export function fillDemoSensors(tele) {
   if (tele?.planb !== true) return tele;
   const out = { ...tele }, filled = [], num = Number.isFinite;
@@ -430,6 +431,16 @@ export function fillDemoSensors(tele) {
   }
   out._demo = filled;
   return out;
+}
+
+// 시연 조작(co2.html → oink/demo/co2): CO₂만 덮어쓴다. 기준(CO2_MOOD, CO2_ALERT)과 다른 값은 그대로. 범위 밖·잘못된 값은 null
+export function parseDemoCo2(raw) {
+  try { const v = JSON.parse(raw)?.co2_ppm; return Number.isFinite(v) && v >= 0 && v <= CO2_MAX ? v : null; } catch { return null; }
+}
+// #1 수신이 없으면(board1 없음) 만들지 않는다. 잠 표정과 수신 끊김 판단은 그대로 둔다
+export function applyDemoCo2(tele, ppm) {
+  if (ppm == null || !tele?.board1 || typeof tele.board1 !== "object") return tele;
+  return { ...tele, board1: { ...tele.board1, co2_ppm: ppm, co2_status: 1, err: tele.board1.err & ~ERR_CO2 }, _demo: [...(tele._demo || []), "co2"] };
 }
 
 // 카드에 표시하는 값(없으면 null)
