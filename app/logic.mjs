@@ -25,6 +25,23 @@ export const co2MoodBad = (b1) => co2Valid(b1) && b1.co2_ppm >= CO2_MOOD;
 // 돼지 얼굴은 CO₂만으로 정한다. 끊김이나 CO₂ 무효는 기본 얼굴
 export const co2Face = (state, b1) => (state === "sleep" || !co2Valid(b1) ? "base" : co2MoodBad(b1) ? "angry" : "happy");
 // 기분 좋을 때 돼지 움직임: happy=방방(기본), calm=차분. 경고 흔들림 등 다른 상태는 그대로
+// TFT 프레임 세트: oink3_planb moodNow()와 같은 규칙(#1 없음=잠, 유효 CO₂ 기준 이상=화남, 그 외=웃음)
+export const tftMood = (b1) => (!b1 ? "sleep" : co2MoodBad(b1) ? "smelly" : "calm");
+// #1→#3 수신 로그. 텔레메트리 원본 값만 쓴다. seq가 늘어야 새 신호로 친다(줄어들면 #1 재부팅)
+export const RX_LOG_MAX = 20;
+export function rxLogStep(st, tele, now) {
+  const b1 = tele?.board1, seq = b1?.seq, gotSeq = Number.isFinite(seq);
+  const kind = !gotSeq ? "none" : seq === st.seq ? "stuck" : "rx";
+  return {
+    seq: gotSeq ? seq : st.seq,
+    lastRx: kind === "rx" ? now : st.lastRx,
+    rx: tele?.gateway?.rx ?? st.rx,
+    log: [{ t: now, kind, seq: gotSeq ? seq : null, lost: b1?.lost ?? null }, ...st.log].slice(0, RX_LOG_MAX),
+  };
+}
+export const rxLive = (st, now) => !!st.lastRx && now - st.lastRx < STALE_MS;
+export const rxLine = (e) => (e.kind === "rx" ? `#1→#3 수신 seq ${e.seq} · 손실 ${e.lost ?? "?"}`
+  : e.kind === "stuck" ? `#1 새 신호 없음 (seq ${e.seq} 그대로)` : "#1 신호 없음 (#3에 board1 값 없음)");
 export const goodMotionOf = (v) => (v === "calm" ? "calm" : "happy");
 export const pigStill = (motion, state, face) => goodMotionOf(motion) === "calm" && state === "calm" && face === "happy";
 // 알림 팝업: 기준 미만 → 이상으로 넘을 때만 show. 무효값은 이전 상태 유지. 처음 상태 high=false라 첫 유효값이 이상이면 뜬다
@@ -447,4 +464,23 @@ export function mergeEvents(local, db) {
   return [...(Array.isArray(local) ? local : []), ...(Array.isArray(db) ? db : [])]
     .filter((e) => { if (e.dbId == null) return true; if (seen.has(e.dbId)) return false; seen.add(e.dbId); return true; })
     .sort((a, b) => a.ts - b.ts).slice(-EVENT_MAX);
+}
+
+// 지난 측정 기록: 시간이 gap초보다 비면 선을 끊는다(공백을 잇지 않음).
+export function gapSegments(pts, gap) {
+  const out = [];
+  for (const p of pts) {
+    if (!out.length || p[0] - out[out.length - 1].at(-1)[0] > gap) out.push([]);
+    out[out.length - 1].push(p);
+  }
+  return out;
+}
+// 축 눈금: lo~hi를 덮는 1·2·5 단위 눈금
+export function niceTicks(lo, hi, n = 5) {
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const raw = (hi - lo) / (n - 1), mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map((k) => k * mag).find((s) => s >= raw);
+  const out = [];
+  for (let k = Math.floor(lo / step); k * step < hi + step * 0.999; k++) out.push(+(k * step).toFixed(6));
+  return out;
 }

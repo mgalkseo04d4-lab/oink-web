@@ -162,6 +162,7 @@
             <article class="card stat tap" id="cTemp" role="button" tabindex="0" data-go="aTemp" aria-label="심부 온도 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-thermo"/></svg>내부(심부) 온도</p><p class="big"><span id="vTemp">—</span><small>℃</small></p><p class="num"><span id="lvTemp" class="lvl" hidden></span></p><p id="nTemp" class="num"></p><p class="num tiny"><span class="src real" id="srcTemp" hidden></span> <span class="src dq" id="dqTemp" hidden></span></p></article>
             <article class="card stat tap" id="cAct" role="button" tabindex="0" data-go="aAct" aria-label="분해 활성 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-bars"/></svg>예측 대비 발생량</p><p class="big"><span id="vAct">—</span></p><p id="nAct" class="num">음식물을 넣으면 보여요</p><p class="num tiny"><span class="src model">모델 추정치</span> <span class="badge demo" hidden>시연 배속</span></p></article>
             <article class="card stat tap" id="cOdor" role="button" tabindex="0" data-go="aOdor" aria-label="냄새 지수 분석 보기"><p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-leaf"/></svg>냄새 지수</p><p class="big"><span id="vOdorH">—</span></p><p id="nOdorH" class="num">깨끗한 공기 = 1</p><p class="num tiny"><span class="src dq" id="srcOdorH" hidden></span> <span class="src dq" id="odorWarmH" hidden>예열 중</span></p></article>
+            <article class="card stat" id="cTft"><p class="kicker">TFT 화면</p><div id="tftPig" class="tft sleep" data-mood="sleep" role="img" aria-label="TFT 돼지 애니메이션: 자는 얼굴"></div><p class="num tiny">같은 프레임을 앱에서 재생(패널 영상 아님)</p></article>
           </div>
         </div>
         <div class="st-left">
@@ -211,7 +212,7 @@
           <div class="card-head"><p class="kicker">심부 온도 추세</p><span class="badge">최근 10분</span></div>
           <svg id="gTemp" class="spark" viewBox="0 0 320 110" role="img" aria-label="심부 온도 최근 10분 추세"></svg>
         </article>
-        <p class="muted">앱을 열어 둔 동안 쌓여요. 닫으면 처음부터 다시 쌓여요.</p>
+        <p class="muted rec-row"><span>앱을 열어 둔 동안 쌓여요. 닫으면 처음부터 다시 쌓여요.</span><button type="button" id="recOpen" class="ghost">지난 측정 기록</button></p>
         <div class="grid2">
           <article class="card stat" id="aOdor"><p class="kicker">냄새 지수</p><p class="big"><span id="vOdor">—</span></p><p id="nOdor" class="num">깨끗한 공기 = 1</p><p class="num tiny"><span class="src dq" id="srcOdor" hidden></span> <span class="src dq" id="odorWarm" hidden>예열 중</span></p></article>
           <article class="card stat" id="cProg"><p class="kicker">분해 진행 <span class="badge demo" hidden>시연 배속</span></p><div class="bar"><div id="progBar"></div></div><p id="progText" class="num">음식물을 넣으면 보여요</p><p id="progAct" class="num act"></p><p id="progTrend" class="num"></p><p class="num tiny"><span class="src model">모델 추정치</span></p></article>
@@ -224,6 +225,12 @@
           <div class="card-head"><p class="kicker">알림</p><button type="button" id="clearEv" class="ghost small">모두 지우기</button></div>
           <ul id="evList" class="list"></ul>
           <p id="evEmpty" class="muted">아직 알림이 없어요</p>
+        </article>
+        <article class="card" id="rxCard">
+          <div class="card-head"><p class="kicker">#1 → #3 수신 로그</p><span id="rxBadge" class="badge warn">수신 끊김</span></div>
+          <p id="rxTotal" class="muted tiny"></p>
+          <ul id="rxList" class="list rxlist" aria-label="#1 신호 수신 기록, 최신이 위" tabindex="0"></ul>
+          <p id="rxEmpty" class="muted">아직 받은 신호가 없어요</p>
         </article>
       </div>
 
@@ -336,6 +343,29 @@
     <div class="alarm-btns">
       <button type="button" id="co2AlarmOk" class="alarm-ok">확인</button>
       <button type="button" id="co2AlarmClose" class="alarm-close">닫기</button>
+    </div>
+  </dialog>
+  <dialog id="recDlg" class="mg-dialog rec-dialog" aria-labelledby="recT">
+    <div class="mg-card">
+      <button type="button" id="recX" class="mg-x" aria-label="닫기"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <h2 id="recT" class="mg-title" tabindex="-1" autofocus>지난 측정 기록</h2>
+      <p class="rec-warn">지금 값이 아니에요. 2026-11-06~07 로그 파일에 남은 과거 측정값이에요.</p>
+      <div class="seg rec-view" role="group" aria-label="보기 선택"><button type="button" id="recVGraph" aria-pressed="true">그래프</button><button type="button" id="recVRules" aria-pressed="false">데이터 선별 기준</button></div>
+      <div class="mg-scroll">
+        <section id="recGraph">
+          <div id="recCats" class="rec-cats" role="group" aria-label="기록 범주"></div>
+          <svg id="gRec" class="spark rec-chart" role="img"></svg>
+          <p id="recRead" class="rec-read" aria-live="polite"></p>
+          <p id="recLegend" class="rec-legend"></p>
+          <p id="recCount" class="rec-count"></p>
+          <p id="recNote" class="rec-note"></p>
+        </section>
+        <section id="recRules" hidden>
+          <div class="rec-tw" tabindex="0" role="region" aria-label="파일별 데이터 선별 건수"><table class="rec-table"><thead><tr><th>파일</th><th>값</th><th>원본</th><th>결측 제외</th><th>오류값 제외</th><th>범위 밖 제외</th><th>유효</th><th>숫자값 범위 → 유효 범위</th></tr></thead><tbody id="recRows"></tbody></table></div>
+          <div id="recText" class="rec-text"></div>
+        </section>
+      </div>
+      <button type="button" id="recClose" class="mg-close">닫기</button>
     </div>
   </dialog>
   <dialog id="manual" class="mg-dialog" aria-labelledby="manualT">

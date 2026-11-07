@@ -1,6 +1,6 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { play, soundOn, setSoundOn } from "./sound.js";
-import { goodMotionOf, pigStill, fillDemoSensors, co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
+import { gapSegments, niceTicks, tftMood, rxLogStep, rxLive, rxLine, goodMotionOf, pigStill, fillDemoSensors, co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, tempCardValue, odorCard, LOCAL_TARGET_C,
@@ -52,6 +52,7 @@ let gw = { online: false, tele: null, lastSeen: 0 };
 const loadJson = (k, d) => { try { const v = JSON.parse(store.get(k) || "null"); return v ?? d; } catch { return d; } };
 let co2Hist = loadJson(KEY_CO2, []).filter((p) => Number.isFinite(p?.t) && Number.isFinite(p?.ppm));
 let tempHist = [];
+let rxSt = { seq: null, lastRx: 0, rx: null, log: [] }; // #1→#3 수신 로그(메모리에만)
 let lastHoldSend = 0;
 let co2Base = loadJson(KEY_BASE, null);
 let amp = Number(store.get(KEY_AMP)) || AMP_DEFAULT;
@@ -307,6 +308,17 @@ function render() {
   const linked = !!(client?.connected && gw.online);
   const face = co2Face(hs.state, b1);
   const pigCls = `pig ${hs.state}${hs.state === "sleep" && !linked ? " off" : ""}${pigStill(goodMotion, hs.state, face) ? " still" : ""}`;
+  const tft = tftMood(b1), tftEl = $("tftPig");
+  if (tftEl.dataset.mood !== tft) {
+    tftEl.dataset.mood = tft; tftEl.className = `tft ${tft}`;
+    tftEl.setAttribute("aria-label", `TFT 돼지 애니메이션: ${tft === "sleep" ? "자는 얼굴" : tft === "smelly" ? "화난 얼굴" : "웃는 얼굴"}`);
+  }
+  const rxOn = rxLive(rxSt, now);
+  $("rxBadge").textContent = rxOn ? "수신 중" : "수신 끊김";
+  $("rxBadge").className = `badge ${rxOn ? "" : "warn"}`;
+  const rxC = rxSt.rx;
+  $("rxTotal").textContent = rxC ? `#3 누적 수신 ${rxC.all ?? "?"} · 오류 ${rxC.bad ?? "?"} · 다른 보드 ${rxC.wrong_src ?? "?"}` : "";
+  $("rxEmpty").hidden = rxSt.log.length > 0;
   const pig = $("pig");
   if (pig.dataset.face !== face) {
     pig.dataset.face = face; pig.src = `img/pig_${face}.webp`;
@@ -566,6 +578,14 @@ function onMessage(topic, buf) {
   }
   if (topic === T.status) { gw.online = !!msg.online; gw.status = msg; }
   else if (topic === T.tele) {
+    rxSt = rxLogStep(rxSt, msg, Date.now()); // 시연값 채우기 전 원본
+    $("rxList").replaceChildren(...rxSt.log.map((e) => {
+      const li = document.createElement("li");
+      li.className = e.kind === "rx" ? "" : "off";
+      li.append(Object.assign(document.createElement("span"), { className: "t", textContent: new Date(e.t).toTimeString().slice(0, 8) }),
+        Object.assign(document.createElement("span"), { textContent: rxLine(e) }));
+      return li;
+    }));
     msg = fillDemoSensors(msg);
     gw.tele = msg; gw.online = true; gw.lastSeen = Date.now();
     const b1 = msg.board1;
@@ -619,6 +639,116 @@ function sendHeater(want, auto = false) {
 }
 
 // shortcut: 두 기기가 거의 동시에 기록하면 늦게 도착한 쪽이 앞 기록을 덮을 수 있음 — 시연 규모에선 허용, 필요하면 서버 저장소로
+
+// 지난 측정 기록: 번들한 과거 로그만 그린다. 실시간 값·예측·알림·표정과 섞지 않는다.
+const REC_COLORS = ["#2563EB", "#E8590C"]; // 2계열 색약 검증 통과(dataviz validate_palette)
+const REC_GAP = 30; // 초. 이보다 비면 선을 잇지 않는다
+let recData = null, recCat = 0, recHit = [];
+const recTime = (t, sec) => new Date(t * 1000).toLocaleTimeString("sv-SE", { timeZone: "Asia/Seoul", hour12: false }).slice(0, sec ? 8 : 5);
+const recDay = (t) => new Date(t * 1000).toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+function recCounts(id) {
+  const rs = recData.rows.filter((r) => r.chart === id);
+  const valid = rs.reduce((a, r) => a + r.valid, 0), raw = rs.reduce((a, r) => a + r.raw, 0);
+  return { valid, ex: raw - valid };
+}
+function recDraw() {
+  const cat = recData.cats[recCat], svg = $("gRec");
+  const W = Math.max(280, svg.parentElement.clientWidth), H = Math.round(Math.min(300, Math.max(210, innerHeight * 0.27)));
+  const L = 50, R = 12, Tp = 28, B = 50;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const all = cat.series.map((s) => s.pts.map(([d, v]) => [s.t0 + d, v]));
+  const ts = all.flat().map((p) => p[0]), vs = all.flat().map((p) => p[1]);
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const yt = niceTicks(Math.min(...vs), Math.max(...vs), 5), lo = yt[0], hi = yt.at(-1);
+  const x = (t) => L + ((t - t0) / Math.max(t1 - t0, 1)) * (W - L - R), y = (v) => Tp + (1 - (v - lo) / (hi - lo)) * (H - Tp - B);
+  const step = [30, 60, 120, 300, 600, 900, 1800, 3600].find((s) => (t1 - t0) / s <= (W < 420 ? 4 : 6)) || 7200;
+  const off = 9 * 3600; // 눈금을 KST 정각에 맞춘다
+  let g = "";
+  for (const v of yt) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="sp-grid"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end" class="rc-ax">${v}</text>`;
+  for (let t = Math.ceil((t0 + off) / step) * step - off; t <= t1; t += step) g += `<line x1="${x(t)}" x2="${x(t)}" y1="${H - B}" y2="${H - B + 5}" stroke="var(--muted)"/><text x="${x(t)}" y="${H - B + 18}" text-anchor="middle" class="rc-ax">${recTime(t, step < 60)}</text>`;
+  g += `<text x="0" y="15" class="rc-title">${cat.y}</text>`;
+  const span = recDay(t0) === recDay(t1) ? `${recDay(t0)} ${recTime(t0)}~${recTime(t1)}` : `${recDay(t0)} ${recTime(t0)} ~ ${recDay(t1)} ${recTime(t1)}`;
+  g += `<text x="${(L + W - R) / 2}" y="${H - 8}" text-anchor="middle" class="rc-title">시각 (${span})</text>`;
+  all.forEach((pts, i) => {
+    for (const seg of gapSegments(pts, REC_GAP)) {
+      if (seg.length === 1) g += `<circle cx="${x(seg[0][0]).toFixed(1)}" cy="${y(seg[0][1]).toFixed(1)}" r="3" fill="${REC_COLORS[i]}"/>`;
+      else g += `<polyline points="${seg.map((p) => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ")}" fill="none" stroke="${REC_COLORS[i]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }
+  });
+  svg.innerHTML = g + `<g id="recCross"></g>`;
+  const c = recCounts(cat.id);
+  svg.setAttribute("aria-label", `${cat.label} ${cat.y} 그래프. ${span}. 유효 ${c.valid}건.`);
+  recHit = all.flatMap((pts, i) => pts.map((p) => ({ t: p[0], v: p[1], i, file: cat.series[i].file })));
+  recHit.geom = { x, y, Tp, B, H };
+  $("recRead").textContent = "그래프를 누르면 그 시각의 값이 나와요";
+  $("recLegend").innerHTML = cat.series.map((s, i) => `<span><i style="background:${REC_COLORS[i]}"></i>${s.name} · ${s.file} · ${s.date} · ${s.n}건</span>`).join("");
+  $("recCount").textContent = `유효 ${c.valid}건 / 제외 ${c.ex}건 (기준: ${cat.crit})`;
+  $("recNote").textContent = cat.id === "co2b" ? `550ppm ${recData.co2.n550}건은 고정값일 수 있어 신뢰 미확정이에요. 30초 넘게 빈 구간은 선을 잇지 않았어요.` : "30초 넘게 빈 구간은 선을 잇지 않았어요. 원본 값을 그대로 그렸어요.";
+  for (const b of $("recCats").children) b.setAttribute("aria-pressed", String(+b.dataset.i === recCat));
+}
+function recPoint(e) {
+  if (!recHit.length) return;
+  const svg = $("gRec"), r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal, px = ((e.clientX - r.left) / r.width) * vb.width;
+  let best = recHit[0], bd = Infinity;
+  for (const h of recHit) { const d = Math.abs(recHit.geom.x(h.t) - px); if (d < bd) { bd = d; best = h; } }
+  const { x, y, Tp, B, H } = recHit.geom, cat = recData.cats[recCat];
+  $("recCross").innerHTML = `<line x1="${x(best.t)}" x2="${x(best.t)}" y1="${Tp}" y2="${H - B}" class="rc-cross"/><circle cx="${x(best.t)}" cy="${y(best.v)}" r="4" fill="${REC_COLORS[best.i]}" stroke="#fff" stroke-width="2"/>`;
+  $("recRead").textContent = `${recDay(best.t)} ${recTime(best.t, true)} · ${best.v} ${cat.unit} · ${best.file}`;
+}
+function recRules() {
+  const fmt = (o) => Object.entries(o).map(([k, n]) => `${k}: ${n}건`).join(", ") || "0";
+  const rg = (a, u) => (a ? (a[0] === a[1] ? `${a[0]}${u}` : `${a[0]}~${a[1]}${u}`) : "없음");
+  const line = (r) => {
+    const u = r.metric === "CO₂" ? "ppm" : "℃";
+    return `<tr><td>${r.file}${r.part ? ` (${r.part})` : ""}${r.extra ? `<br><small>${r.extra}</small>` : ""}</td><td>${r.metric}</td><td>${r.raw}</td><td>${fmt(r.missing)}</td><td>${fmt(r.error)}</td><td>${r.below + r.above}${r.below ? ` (${r.lim[0]} 미만)` : ""}${r.above ? ` (${r.lim[1]} 초과)` : ""}</td><td>${r.valid}</td><td>${rg(r.numRange, u)} → ${rg(r.validRange, u)}</td></tr>`;
+  };
+  const sum = (m) => {
+    const rs = recData.rows.filter((r) => r.metric === m), s = (k) => rs.reduce((a, r) => a + k(r), 0);
+    return `<tr class="sum"><td>합계</td><td>${m}</td><td>${s((r) => r.raw)}</td><td>${s((r) => Object.values(r.missing).reduce((a, b) => a + b, 0))}</td><td>${s((r) => Object.values(r.error).reduce((a, b) => a + b, 0))}</td><td>${s((r) => r.below + r.above)}</td><td>${s((r) => r.valid)}</td><td></td></tr>`;
+  };
+  const by = (m) => recData.rows.filter((r) => r.metric === m).map(line).join("") + sum(m);
+  $("recRows").innerHTML = by("CO₂") + by("온도");
+  const shown = recData.rows.reduce((a, r) => a + r.valid, 0), { mq, co2 } = recData, st1 = co2.status["1"] || 0, df = Object.entries(co2.df3).map(([k, n]) => `${k}(${n}건)`).join(", ");
+  $("recText").innerHTML = `
+    <h3>처리 방식</h3><ul>
+      <li>결측과 이상값은 <b>제외만</b> 했어요. 보간, 평균 대체, 값 수정은 하지 않았어요.</li>
+      <li>건수를 줄이지 않았어요. 유효 ${shown}건을 전부 그렸어요(줄이기 전후 ${shown}건 동일).</li>
+      <li>30초 넘게 비는 구간은 선으로 잇지 않았어요.</li>
+      <li>건수는 생성기(webapp/img_src/records_gen.py)가 원본 로그에서 계산하고, 항목 합이 원본 건수와 같은지 검사해요.</li></ul>
+    <h3>선별 기준과 근거</h3><ul>
+      <li>범위는 DB 트리거(supabase/migrations/20261106000000_init.sql)와 같아요. CO₂ 350~4999ppm, 온도 0~70℃, 온도 오류코드 -127·85.</li>
+      <li>트리거의 급변(spike) 판정은 쓰지 않았어요. 범위 안이면 급하게 변해도 포함했어요.</li>
+      <li>550ppm ${co2.n550}건은 고정값일 수 있지만 범위 안이라 포함했고, 신뢰는 미확정이에요.</li>
+      <li>상태값으로는 선별할 수 없었어요. live_1107은 상태 ${st1}건이 전부 1인데 원본 프레임 상태 바이트(DF3)는 ${df}이에요. 유효 프레임을 1로 고정한 커밋 a1b7ee8(11/07 07:20)과 일치해요. view1_1107에는 상태 항목이 없어요(${co2.viewNoStatus}건).</li>
+      <li>MQ ${mq.n}건은 전부 raw ${mq.raw}(${mq.min}~${mq.max}V) 포화라 그래프에서 뺐어요.</li></ul>
+    <h3>미확인</h3><ul>
+      <li>a1b7ee8을 #1에 올린 시각은 기록을 찾지 못했어요.</li>
+      <li>CO₂ 값의 정확도(교정 여부)는 확인하지 못했어요. 범위 안이라고 정확하다는 뜻은 아니에요.</li>
+      <li>날짜가 없는 로그(live, view1, main)의 날짜는 파일 이름으로 정했어요. 시각은 기록한 PC 시각이에요.</li>
+      <li>heat 로그가 #2 쪽이라는 건 센서기록_현황.md 기준이에요. main_20261106_233624에는 센서 이름이 없어요.</li></ul>`;
+}
+function recSetView(rules) {
+  $("recGraph").hidden = rules; $("recRules").hidden = !rules;
+  $("recVGraph").setAttribute("aria-pressed", String(!rules)); $("recVRules").setAttribute("aria-pressed", String(rules));
+  if (!rules) recDraw();
+}
+$("recOpen").addEventListener("click", async () => {
+  $("recDlg").showModal();
+  if (recData) return recSetView(false);
+  try {
+    recData = await (await fetch("records.json")).json();
+    $("recCats").innerHTML = recData.cats.map((c, i) => `<button type="button" data-i="${i}" aria-pressed="false">${c.label}</button>`).join("");
+    recRules(); recSetView(false);
+  } catch { $("recRead").textContent = "기록 파일을 불러오지 못했어요"; }
+});
+$("recCats").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { recCat = +b.dataset.i; recDraw(); } });
+$("recVGraph").addEventListener("click", () => recSetView(false));
+$("recVRules").addEventListener("click", () => recSetView(true));
+$("gRec").addEventListener("pointerdown", recPoint);
+$("gRec").addEventListener("pointermove", recPoint);
+for (const id of ["recX", "recClose"]) $(id).addEventListener("click", () => $("recDlg").close());
+$("recDlg").addEventListener("click", (e) => { if (e.target === $("recDlg")) $("recDlg").close(); });
+addEventListener("resize", () => { if ($("recDlg").open && recData && !$("recGraph").hidden) recDraw(); });
 $("toast").addEventListener("click", () => { $("toast").hidden = true; });
 $("co2AlarmClose").addEventListener("click", () => $("co2Alarm").close());
 $("co2AlarmOk").addEventListener("click", () => {

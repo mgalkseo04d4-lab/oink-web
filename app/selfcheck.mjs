@@ -1,11 +1,11 @@
 // node webapp/selfcheck.mjs — logic.mjs 판정 확인
 import assert from "node:assert/strict";
-import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
+import { gapSegments, niceTicks, co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
   goodMotionOf, pigStill, co2MoodBad, co2Face, co2AlarmStep, CO2_MOOD, homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, co2Valid, tempCardValue, odorCard, hotHeaterGuard, latchStatus,
-  latchResetCmd, latchResetText, FAULT_WORD, LATCH_RESET_ASK, tempBand, co2Arrow, CO2_TREND_MIN, dbTempPoints, fillDemoSensors } from "./logic.mjs";
+  latchResetCmd, latchResetText, FAULT_WORD, LATCH_RESET_ASK, tempBand, co2Arrow, CO2_TREND_MIN, dbTempPoints, fillDemoSensors, tftMood, rxLogStep, rxLive, rxLine, RX_LOG_MAX } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -381,5 +381,33 @@ assert.deepEqual(dbTempPoints(null), []);
   assert.equal(fillDemoSensors(notPlanB), notPlanB);
   assert.deepEqual(notPlanB.board1.temp1_c, null);
   assert.equal(fillDemoSensors({ planb: true }).board1, undefined); // #1 끊김은 끊김으로 둔다
+}
+{
+  assert.equal(tftMood(null), "sleep");
+  assert.equal(tftMood({ co2_ppm: null, co2_status: 255 }), "calm");
+  assert.equal(tftMood({ co2_ppm: 499, co2_status: 1 }), "calm");
+  assert.equal(tftMood({ co2_ppm: 500, co2_status: 1 }), "smelly");
+  assert.equal(tftMood({ co2_ppm: 900, co2_status: 3 }), "calm");
+  const f = (seq) => ({ board1: { seq, lost: 0 }, gateway: { rx: { all: 5, bad: 0, wrong_src: 0 } } });
+  let s = { seq: null, lastRx: 0, rx: null, log: [] };
+  assert.equal(rxLive(s, 1000), false);
+  s = rxLogStep(s, f(1), 1000); assert.equal(s.log[0].kind, "rx"); assert.equal(rxLive(s, 1000), true);
+  assert.equal(rxLine(s.log[0]), "#1→#3 수신 seq 1 · 손실 0");
+  s = rxLogStep(s, f(2), 3000); assert.equal(s.log[0].kind, "rx"); assert.equal(s.lastRx, 3000);
+  s = rxLogStep(s, f(2), 5000); assert.equal(s.log[0].kind, "stuck"); assert.equal(s.lastRx, 3000);
+  assert.equal(rxLive(s, 3000 + STALE_MS), false); // seq가 멈추면 프레임이 와도 끊김
+  s = rxLogStep(s, {}, 7000); assert.equal(s.log[0].kind, "none"); assert.equal(s.lastRx, 3000);
+  s = rxLogStep(s, f(1), 9000); assert.equal(s.log[0].kind, "rx"); // #1 재부팅
+  for (let i = 0; i < 30; i++) s = rxLogStep(s, f(10 + i), 10000 + i);
+  assert.equal(s.log.length, RX_LOG_MAX); assert.equal(s.log[0].seq, 39);
+}
+{
+  const seg = gapSegments([[0, 1], [2, 2], [40, 3], [41, 4], [100, 5]], 30);
+  assert.deepEqual(seg.map((g) => g.length), [2, 2, 1]);
+  assert.deepEqual(gapSegments([], 30), []);
+  const t = niceTicks(351, 808); assert.ok(t[0] <= 351 && t.at(-1) >= 808 && t.length <= 7);
+  assert.deepEqual(niceTicks(0, 10, 3), [0, 5, 10]);
+  assert.ok(niceTicks(19.4, 39).every((v, i, a) => i === 0 || v > a[i - 1]));
+  assert.equal(niceTicks(5, 5).length > 1, true);
 }
 console.log("selfcheck ok");
