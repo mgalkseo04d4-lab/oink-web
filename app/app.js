@@ -1,6 +1,6 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { play, soundOn, setSoundOn } from "./sound.js";
-import { co2MoodBad, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
+import { co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, tempCardValue, odorCard, LOCAL_TARGET_C,
@@ -30,6 +30,7 @@ const KEY_AMP = "oink.app.amp";
 const KEY_DEMO = "oink.app.demo";
 const KEY_PREHOT = "oink.app.prehot"; // 뜨거운 음식물 감지 직전 히터 모드(복귀 때 ECO 유지용)
 const KEY_HOT = "oink.app.hot";      // 뜨거운 음식물 감지 상태(앱을 다시 열어도 복귀 판단 이어짐)
+const MANUAL_URL = "manual.html";
 const BROKER = "wss://o9f10aca.ala.asia-southeast1.emqxsl.com:8084/mqtt"; // 주소 고정(로그인 화면에 칸 없음)
 // Supabase(PostgREST 직접 fetch). 공개(publishable) 키 = anon 권한: 읽기 + feed_log INSERT만(RLS). 비밀값·service_role은 앱에 두지 않는다
 const SB_URL = "https://vjidekvsgernbqdhimnu.supabase.co";
@@ -62,6 +63,9 @@ let pendingReset = null; // 과열 차단 해제 { id, timer }
 let preHot = store.get(KEY_PREHOT) || null;
 const MODE_NAME = { off: "히터 끄기", auto: "자동 모드", eco: "🌱 에코 절전" };
 let toastTimer = null;
+// CO₂ 알림 팝업: 지금 기준 이상인지. 설명서에서 돌아와 다시 뜨지 않게 이 탭 동안 유지
+let co2High = false;
+try { co2High = sessionStorage.getItem("oink.co2High") === "1"; } catch { /* 저장 불가여도 동작 */ }
 let lastCo2Save = 0;
 let feedLog = [];
 let events = [];
@@ -299,9 +303,9 @@ function render() {
   const ecoHome = hs.state === "calm" && hm === "eco" && !b2?.latched; // 이상·끊김·래치가 ECO보다 우선
   const latchHome = !!b2?.latched && hs.state === "calm"; // 래치 중엔 웃는 얼굴·꽃 대신 기본 표정
   $("hero").className = `hero card ${hs.state}${ecoHome ? " eco" : ""}${latchHome ? " latch" : ""}`;
-  // 표정 이미지(판정은 logic 그대로): 정상=웃음, 이상=화남, 대기·데이터 없음=기본, 끊김=기본+회색
+  // 표정 이미지(logic co2Face): CO₂ 기준 미만=웃음, 이상=화남, 무효·끊김=기본(끊김은 회색)
   const linked = !!(client?.connected && gw.online);
-  const face = hs.state === "alert" || (hs.state !== "sleep" && co2MoodBad(b1)) ? "angry" : ecoHome || latchHome ? "base" : hs.state === "calm" ? "happy" : "base";
+  const face = co2Face(hs.state, b1);
   const pigCls = `pig ${hs.state}${hs.state === "sleep" && !linked ? " off" : ""}`;
   const pig = $("pig");
   if (pig.dataset.face !== face) {
@@ -549,6 +553,12 @@ function onMessage(topic, buf) {
   else if (topic === T.tele) {
     gw.tele = msg; gw.online = true; gw.lastSeen = Date.now();
     const b1 = msg.board1;
+    if (!$("splash")) { // 시작 화면 위로 뜨지 않게, 앱에 들어온 뒤부터 판정
+      const a = co2AlarmStep(co2High, b1);
+      co2High = a.high;
+      try { sessionStorage.setItem("oink.co2High", co2High ? "1" : "0"); } catch { /* 저장 불가여도 동작 */ }
+      if (a.show && !$("co2Alarm").open) $("co2Alarm").showModal();
+    }
     const keep = (h) => h.filter((p) => gw.lastSeen - p.t < 72 * 3600 * 1000);
     const now = gw.lastSeen;
     if (valid(b1)) co2Hist = capPoints(keep([...co2Hist, { t: now, ppm: b1.co2_ppm }]));
@@ -594,6 +604,11 @@ function sendHeater(want, auto = false) {
 
 // shortcut: 두 기기가 거의 동시에 기록하면 늦게 도착한 쪽이 앞 기록을 덮을 수 있음 — 시연 규모에선 허용, 필요하면 서버 저장소로
 $("toast").addEventListener("click", () => { $("toast").hidden = true; });
+$("co2AlarmClose").addEventListener("click", () => $("co2Alarm").close());
+$("co2AlarmOk").addEventListener("click", () => {
+  $("co2Alarm").close();
+  location.href = MANUAL_URL;
+});
 const onFeed = (e) => {
   const size = e.target.closest("button")?.dataset.size;
   if (!size || !client?.connected) return;

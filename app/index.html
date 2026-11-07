@@ -312,5 +312,13 @@
       </nav>
     </section>
   </main>
+  <dialog id="co2Alarm" class="alarm" role="alertdialog" aria-modal="true" aria-labelledby="co2AlarmT" aria-describedby="co2AlarmD">
+    <h2 id="co2AlarmT">알림!</h2>
+    <p id="co2AlarmD">비이상적인 수치 변화를 감지했습니다.<br>설명서를 확인하시겠습니까?</p>
+    <div class="alarm-btns">
+      <button type="button" id="co2AlarmOk" class="alarm-ok" autofocus>확인</button>
+      <button type="button" id="co2AlarmClose" class="alarm-close">닫기</button>
+    </div>
+  </dialog>
 </body>
 </html>

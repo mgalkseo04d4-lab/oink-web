@@ -488,3 +488,22 @@ button:active:not(:disabled) { box-shadow: inset 0 3px 6px rgba(160, 80, 100, .2
   background: var(--critical); color: #fff; box-shadow: 0 6px 18px rgba(214, 40, 40, .35); }
 .latch-bar p { margin: 0; flex: 1 1 160px; font-weight: 700; font-size: .92rem; }
 .latch-bar .latchBtn { flex: 0 0 auto; background: #fff; color: var(--critical); }
+
+/* CO₂ 알림 팝업 */
+.alarm { width: min(calc(100vw - 40px), 400px); margin: auto; padding: 24px 16px 20px; border: 0; border-radius: 20px; background: var(--surface); color: var(--text); text-align: center; box-shadow: 0 16px 40px -8px rgba(40, 30, 30, .35); }
+.alarm::backdrop { background: rgba(60, 46, 46, .35); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.alarm h2 { margin: 0 0 12px; font-size: 1.6rem; font-weight: 800; }
+.alarm p { margin: 0 0 20px; font-size: 1.05rem; line-height: 1.5; }
+.alarm-btns { display: flex; gap: 8px; }
+.alarm .alarm-ok, .alarm .alarm-close { flex: 1; min-height: 52px; border: 0; border-radius: 10px; box-shadow: none; font-size: 1.25rem; font-weight: 700; }
+.alarm .alarm-ok { background: var(--primary); color: #fff; }
+.alarm .alarm-close { background: #E8E8EC; color: var(--text); }
+
+/* 설명서 페이지 */
+.manual { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+.manual h1 { text-align: center; font-size: 1.5rem; font-weight: 800; }
+.manual h2 { margin: 0 0 10px; font-size: 1.1rem; font-weight: 700; }
+.manual ul, .manual ol { margin: 0; padding-left: 22px; line-height: 1.6; }
+.manual li + li { margin-top: 8px; }
+.manual p { margin: 0; line-height: 1.6; }
+.manual-back { display: block; padding: 14px; border-radius: 999px; background: var(--primary); color: #fff; font-weight: 700; text-align: center; text-decoration: none; }
