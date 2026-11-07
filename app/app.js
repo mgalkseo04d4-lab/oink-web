@@ -682,7 +682,7 @@ function recDraw() {
   recHit.geom = { x, y, Tp, B, H };
   $("recRead").textContent = "그래프를 누르면 그 시각의 값이 나와요";
   $("recLegend").innerHTML = cat.series.map((s, i) => `<span><i style="background:${REC_COLORS[i]}"></i>${s.name} · ${s.file} · ${s.date} · ${s.n}건</span>`).join("");
-  $("recCount").textContent = `유효 ${c.valid}건 / 제외 ${c.ex}건 (기준: ${cat.crit})`;
+  $("recCount").textContent = `유효 ${c.valid}건 (기준: ${cat.crit})`;
   $("recNote").textContent = cat.id === "co2b" ? `550ppm ${recData.co2.n550}건은 고정값일 수 있어 신뢰 미확정이에요. 30초 넘게 빈 구간은 선을 잇지 않았어요.` : "30초 넘게 빈 구간은 선을 잇지 않았어요. 원본 값을 그대로 그렸어요.";
   for (const b of $("recCats").children) b.setAttribute("aria-pressed", String(+b.dataset.i === recCat));
 }
