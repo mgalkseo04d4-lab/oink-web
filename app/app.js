@@ -499,7 +499,10 @@ function showGoodMotion() {
   $("motionHappy").setAttribute("aria-pressed", String(goodMotion === "happy"));
   $("motionCalm").setAttribute("aria-pressed", String(goodMotion === "calm"));
 }
-function setGoodMotion(v) { goodMotion = goodMotionOf(v); store.set(KEY_GOOD_MOTION, goodMotion); showGoodMotion(); render(); }
+function setGoodMotion(v) {
+  goodMotion = goodMotionOf(v); store.set(KEY_GOOD_MOTION, goodMotion); showGoodMotion(); render();
+  if (client) client.publish(T.cmd, JSON.stringify({ good_motion: goodMotion }), { qos: 1 });
+}
 showGoodMotion();
 $("motionHappy").addEventListener("click", () => setGoodMotion("happy"));
 $("motionCalm").addEventListener("click", () => setGoodMotion("calm"));

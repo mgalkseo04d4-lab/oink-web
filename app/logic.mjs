@@ -20,7 +20,7 @@ export const co2Warm = (b1) => co2Valid(b1) && b1.co2_status === 0; // 값은 �
 
 // 캐릭터 상태: sleep | smelly | busy | calm
 // 표정 전용 CO₂ 기준. 경고 판정은 CO2_ALERT(1500) 그대로
-export const CO2_MOOD = 700;
+export const CO2_MOOD = 500;
 export const co2MoodBad = (b1) => co2Valid(b1) && b1.co2_ppm >= CO2_MOOD;
 // 돼지 얼굴은 CO₂만으로 정한다. 끊김이나 CO₂ 무효는 기본 얼굴
 export const co2Face = (state, b1) => (state === "sleep" || !co2Valid(b1) ? "base" : co2MoodBad(b1) ? "angry" : "happy");

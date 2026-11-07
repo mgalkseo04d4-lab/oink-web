@@ -19,11 +19,11 @@ assert.equal(mood({ ...live, online: false, b1: { co2_status: 1 }, slope: 5 }), 
 assert.equal(mood({ ...live, lastSeen: now - STALE_MS - 1, b1: { co2_status: 1 }, slope: 5 }), "sleep");
 assert.equal(mood({ ...live, b1: null, slope: 5 }), "sleep");
 assert.equal(mood({ ...live, b1: { co2_status: 1, odor_index: 2.3 }, slope: 5 }), "smelly");
-assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 600, odor_index: 1.1 }, slope: 5 }), "busy");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 450, odor_index: 1.1 }, slope: 5 }), "busy");
 assert.equal(mood({ ...live, b1: { co2_status: 0, odor_index: 1.1 }, slope: 5 }), "calm");
-assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 600, odor_index: 1.1 }, slope: -3 }), "calm");
-assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 699 } }), "calm");
-assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 700 } }), "smelly");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 450, odor_index: 1.1 }, slope: -3 }), "calm");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 499 } }), "calm");
+assert.equal(mood({ ...live, b1: { co2_status: 1, co2_ppm: 500 } }), "smelly");
 assert.equal(mood({ ...live, online: false, b1: { co2_status: 1, co2_ppm: 1000 } }), "sleep"); // 끊김 우선
 
 // 분해 진행(논문 경향 곡선: 정점 72h, 7일 누적=100%)
@@ -58,9 +58,9 @@ assert.deepEqual(homeState({ ...L, b1: { temp1_c: TEMP_ALERT, co2_status: 1, co2
 assert.deepEqual(homeState({ ...L, b1: { temp1_c: 30, co2_status: 1, co2_ppm: CO2_ALERT } }).reasons, ["co2"]);
 assert.deepEqual(homeState({ ...L, b1: { temp1_c: 30, co2_status: 0, co2_ppm: 1600 } }).reasons, ["co2"]); // 예열(0)도 실측값
 assert.equal(homeState({ ...L, b1: { temp1_c: 30, co2_status: 2, co2_ppm: 1600 } }).state, "calm"); // 센서 오류(2)는 무시
-assert.equal(CO2_MOOD, 700);
-assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 699 }), false); // 표정 기준 경계
-assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 700 }), true);
+assert.equal(CO2_MOOD, 500);
+assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 499 }), false); // 표정 기준 경계
+assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 500 }), true);
 // 표정: CO₂만으로. 온도 이상이나 대체 제어와 무관
 const c1 = (co2_ppm, co2_status = 1) => ({ co2_ppm, co2_status });
 assert.equal(goodMotionOf("calm"), "calm");
@@ -72,25 +72,25 @@ assert.equal(pigStill("happy", "calm", "happy"), false);
 assert.equal(pigStill("calm", "calm", "angry"), false);
 assert.equal(pigStill("calm", "alert", "happy"), false);
 assert.equal(pigStill("calm", "sleep", "base"), false);
-assert.equal(co2Face("calm", c1(699)), "happy");
-assert.equal(co2Face("calm", c1(700)), "angry");
-assert.equal(co2Face("local", c1(699)), "happy");
-assert.equal(co2Face("local", c1(700)), "angry");
-assert.equal(co2Face("alert", { ...c1(600), temp1_c: 50 }), "happy");
+assert.equal(co2Face("calm", c1(499)), "happy");
+assert.equal(co2Face("calm", c1(500)), "angry");
+assert.equal(co2Face("local", c1(499)), "happy");
+assert.equal(co2Face("local", c1(500)), "angry");
+assert.equal(co2Face("alert", { ...c1(400), temp1_c: 50 }), "happy");
 assert.equal(co2Face("sleep", c1(900)), "base");
 assert.equal(co2Face("calm", c1(900, 2)), "base");
 assert.equal(co2Face("calm", c1(900, 3)), "base");
 assert.equal(co2Face("calm", c1(-1)), "base");
 assert.equal(co2Face("calm", null), "base");
 // 팝업: 넘을 때 1번, 유지 중 없음, 내려갔다 다시 넘으면 또, 무효값은 상태 유지
-let al = co2AlarmStep(false, c1(600)); assert.deepEqual(al, { high: false, show: false });
+let al = co2AlarmStep(false, c1(400)); assert.deepEqual(al, { high: false, show: false });
 al = co2AlarmStep(al.high, c1(800)); assert.deepEqual(al, { high: true, show: true });
 al = co2AlarmStep(al.high, c1(800)); assert.deepEqual(al, { high: true, show: false });
 al = co2AlarmStep(al.high, c1(900, 2)); assert.deepEqual(al, { high: true, show: false });
 al = co2AlarmStep(al.high, c1(750)); assert.deepEqual(al, { high: true, show: false });
-al = co2AlarmStep(al.high, c1(600)); assert.deepEqual(al, { high: false, show: false });
+al = co2AlarmStep(al.high, c1(400)); assert.deepEqual(al, { high: false, show: false });
 al = co2AlarmStep(al.high, c1(900, 3)); assert.deepEqual(al, { high: false, show: false });
-al = co2AlarmStep(al.high, c1(700)); assert.deepEqual(al, { high: true, show: true });
+al = co2AlarmStep(al.high, c1(500)); assert.deepEqual(al, { high: true, show: true });
 assert.deepEqual(co2AlarmStep(false, c1(800)), { high: true, show: true }); // 첫 유효값이 이미 기준 이상
 assert.deepEqual(co2AlarmStep(false, null), { high: false, show: false });
 assert.equal(co2MoodBad({ co2_status: 2, co2_ppm: 1600 }), false);
