@@ -5,7 +5,7 @@ import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odo
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, co2Valid, tempCardValue, odorCard, hotHeaterGuard, latchStatus,
-  latchResetCmd, latchResetText, FAULT_WORD, LATCH_RESET_ASK, tempBand, co2Arrow, CO2_TREND_MIN, dbTempPoints } from "./logic.mjs";
+  latchResetCmd, latchResetText, FAULT_WORD, LATCH_RESET_ASK, tempBand, co2Arrow, CO2_TREND_MIN, dbTempPoints, fillDemoSensors } from "./logic.mjs";
 
 const now = 1_000_000_000;
 const rising = [0, 1, 2, 3, 4].map((m) => ({ t: now - (4 - m) * 60000, ppm: 600 + m * 20 }));
@@ -349,4 +349,28 @@ assert.deepEqual(dbTempPoints([
   { received_at: "2026-11-06T00:00:06Z", temp1_c: null, flags: ["board1:missing"] },
 ]), [{ t: Date.parse("2026-11-06T00:00:00Z"), v: 35.9 }, { t: Date.parse("2026-11-06T00:00:04Z"), v: 36.1 }]);
 assert.deepEqual(dbTempPoints(null), []);
+// 시연값 채우기: 플랜B의 빈 값만, CO₂·입력 불변, planb 아니면 그대로
+{
+  const raw = () => ({ planb: true,
+    board1: { err: 1, gas_v: 3.141, co2_ppm: 510, co2_status: 1, temp1_c: null, odor_index: null },
+    board2: { temp2_c: null, ctrl_src: "local", ctrl_temp_c: null, latched: false, fault: 7, fault_text: "local_sensor", reasons: 7 } });
+  const inp = raw(), f = fillDemoSensors(inp);
+  assert.deepEqual(inp, raw());
+  assert.deepEqual([f.board1.temp1_c, f.board1.odor_index, f.board1.gas_v, f.board1.err], [36.5, 1.1, 1.2, 0]);
+  assert.deepEqual([f.board1.co2_ppm, f.board1.co2_status], [510, 1]);
+  assert.deepEqual([f.board2.temp2_c, f.board2.ctrl_temp_c, f.board2.ctrl_src, f.board2.fault, f.board2.fault_text, f.board2.reasons], [37, 36.5, "core", 0, "ok", 0]);
+  assert.deepEqual(f._demo, ["temp1", "odor", "temp2", "ctrl_temp"]);
+  assert.equal(homeState({ online: true, lastSeen: now, now, b1: f.board1, b2: f.board2 }).state, "calm");
+  const real = fillDemoSensors({ planb: true, board1: { err: 2, gas_v: 0.8, co2_ppm: -1, co2_status: 3, temp1_c: 41, odor_index: 1.5 },
+    board2: { temp2_c: 39, ctrl_src: "core", ctrl_temp_c: 41, latched: true, fault: 2, fault_text: "overheat", reasons: 2 } });
+  assert.deepEqual([real.board1.temp1_c, real.board1.odor_index, real.board1.gas_v, real.board1.err, real.board1.co2_ppm], [41, 1.5, 0.8, 2, -1]);
+  assert.deepEqual([real.board2.temp2_c, real.board2.latched, real.board2.fault_text], [39, true, "overheat"]);
+  assert.deepEqual(real._demo, []);
+  const otherFault = fillDemoSensors({ planb: true, board2: { temp2_c: null, ctrl_temp_c: 1, ctrl_src: "core", fault: 2, fault_text: "overheat", reasons: 2 } });
+  assert.deepEqual([otherFault.board2.temp2_c, otherFault.board2.fault, otherFault.board2.fault_text], [37, 2, "overheat"]);
+  const notPlanB = { board1: { temp1_c: null, odor_index: null, gas_v: 3.1, err: 1 }, board2: { temp2_c: null, ctrl_src: "local", fault_text: "local_sensor" } };
+  assert.equal(fillDemoSensors(notPlanB), notPlanB);
+  assert.deepEqual(notPlanB.board1.temp1_c, null);
+  assert.equal(fillDemoSensors({ planb: true }).board1, undefined); // #1 끊김은 끊김으로 둔다
+}
 console.log("selfcheck ok");

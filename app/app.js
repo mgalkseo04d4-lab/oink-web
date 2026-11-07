@@ -1,6 +1,6 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { play, soundOn, setSoundOn } from "./sound.js";
-import { co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
+import { fillDemoSensors, co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, tempCardValue, odorCard, LOCAL_TARGET_C,
@@ -332,17 +332,21 @@ function render() {
   $("arCo2").textContent = co2ok ? co2Arrow(co2Slope(co2Hist, now)) : "";
   const t = tempCardValue(b1);
   setSrcBadge($("srcTemp"), t);
+  const demoVals = gw.tele?._demo || [];
+  if (t != null && demoVals.includes("temp1")) { $("srcTemp").textContent = "시연값"; $("srcTemp").className = "src test"; }
   $("vTemp").textContent = t != null ? t.toFixed(1) : "—";
   const band = tempBand(t);
   $("lvTemp").hidden = !band; $("lvTemp").textContent = band?.text || ""; $("lvTemp").className = `lvl ${band?.key || ""}`;
   $("nTemp").textContent = hs.reasons.includes("hot") ? "너무 뜨거워요!" : Number.isFinite(showTgt) ? `목표 ${+showTgt.toFixed(1)}℃` : !b1 ? "연결 안 됨" : "적당해요";
   $("cTemp").classList.toggle("hot", hs.reasons.includes("hot"));
   const odor = odorCard(b1);
+  if (b1 && demoVals.includes("odor")) odor.badge = "시연값";
+  const odorCls = `src ${odor.badge === "실측" ? "real" : odor.badge === "시연값" ? "test" : "dq"}`;
   $("vOdor").textContent = odor.text;
-  $("srcOdor").hidden = !odor.badge; $("srcOdor").textContent = odor.badge; $("srcOdor").className = `src ${odor.badge === "실측" ? "real" : "dq"}`;
+  $("srcOdor").hidden = !odor.badge; $("srcOdor").textContent = odor.badge; $("srcOdor").className = odorCls;
   $("odorWarm").hidden = !odor.warm;
   $("vOdorH").textContent = odor.text;
-  $("srcOdorH").hidden = !odor.badge; $("srcOdorH").textContent = odor.badge; $("srcOdorH").className = `src ${odor.badge === "실측" ? "real" : "dq"}`;
+  $("srcOdorH").hidden = !odor.badge; $("srcOdorH").textContent = odor.badge; $("srcOdorH").className = odorCls;
   $("odorWarmH").hidden = !odor.warm;
   const hasOdorIdx = Number.isFinite(b1?.odor_index);
   const odorNote = !hasOdorIdx && Number.isFinite(b1?.gas_v) ? "가스 센서 전압" : "깨끗한 공기 = 1";
@@ -549,6 +553,7 @@ function onMessage(topic, buf) {
   }
   if (topic === T.status) { gw.online = !!msg.online; gw.status = msg; }
   else if (topic === T.tele) {
+    msg = fillDemoSensors(msg);
     gw.tele = msg; gw.online = true; gw.lastSeen = Date.now();
     const b1 = msg.board1;
     if (!$("splash")) { // 시작 화면 위로 뜨지 않게, 앱에 들어온 뒤부터 판정
@@ -559,7 +564,8 @@ function onMessage(topic, buf) {
     const keep = (h) => h.filter((p) => gw.lastSeen - p.t < 72 * 3600 * 1000);
     const now = gw.lastSeen;
     if (valid(b1)) co2Hist = capPoints(keep([...co2Hist, { t: now, ppm: b1.co2_ppm }]));
-    if (Number.isFinite(b1?.temp1_c)) tempHist = keep([...tempHist, { t: now, c: b1.temp1_c }]).filter((p) => now - p.t <= DB_RAW_MS); // 홈 통합 추이 2시간
+    const demoTemp = !!msg._demo?.includes("temp1"); // 시연값은 그래프에만. 뜨거운 음식물 판정과 히터 명령에는 쓰지 않는다
+    if (Number.isFinite(b1?.temp1_c)) tempHist = keep([...tempHist, { t: now, c: b1.temp1_c, demo: demoTemp }]).filter((p) => now - p.t <= DB_RAW_MS); // 홈 통합 추이 2시간
     const b2 = msg.board2;
     const feedTs = lastFeedTs();
     if (feedTs && co2Base?.feedTs !== feedTs) { // 투입 직후 첫 유효값을 기준으로
@@ -568,7 +574,7 @@ function onMessage(topic, buf) {
     }
     if (now - lastCo2Save > 30000) { lastCo2Save = now; store.set(KEY_CO2, JSON.stringify(co2Hist)); }
     if (client?.connected) {
-      const r = hotFoodStep(hotSt, { series: { t1: tempHist }, co2s: co2Hist, now, cur: { t1: b1?.temp1_c } });
+      const r = hotFoodStep(hotSt, { series: { t1: tempHist.filter((q) => !q.demo) }, co2s: co2Hist, now, cur: { t1: demoTemp ? null : b1?.temp1_c } });
       const g = hotHeaterGuard(r, b2, now - lastHoldSend >= HOLD_RESEND_MS);
       if (g.st !== hotSt) { hotSt = g.st; store.set(KEY_HOT, JSON.stringify(hotSt)); }
       if (g.blocked) notify("hot_on", HOT_MSG_BLOCKED);

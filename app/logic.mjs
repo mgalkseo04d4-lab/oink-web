@@ -387,6 +387,31 @@ export const isTwoBoard = (tele, status) => status?.boards === 2 || !!(tele && (
 export const b1SrcLabel = (two, fake) => (two || !fake ? "실측" : "시험값");
 // 출처 배지: 값이 없으면("—") 주장하지 않음
 export const srcBadge = (val, label) => (Number.isFinite(val) ? label : "");
+// 시연용: 플랜B(#3) 텔레메트리에서 비어 있는 온도·냄새 값만 고정값으로 채운다. CO₂는 실제 값 그대로.
+// 실제 히터가 있는 보드(planb 아님)는 가짜 온도가 과열을 가리면 안 되므로 적용하지 않는다.
+export const DEMO_VALUES = { temp1_c: 36.5, odor_index: 1.1, gas_v: 1.2, temp2_c: 37 };
+const ERR_TEMP = 1 << 0; // Oink2Proto.h OINK_ERR_TEMP
+export function fillDemoSensors(tele) {
+  if (tele?.planb !== true) return tele;
+  const out = { ...tele }, filled = [], num = Number.isFinite;
+  if (tele.board1 && typeof tele.board1 === "object") {
+    const b1 = out.board1 = { ...tele.board1 };
+    if (!num(b1.temp1_c)) { b1.temp1_c = DEMO_VALUES.temp1_c; b1.err &= ~ERR_TEMP; filled.push("temp1"); }
+    if (!num(b1.odor_index)) { b1.odor_index = DEMO_VALUES.odor_index; b1.gas_v = DEMO_VALUES.gas_v; b1.err &= ~ERR_H2S_WARMUP; filled.push("odor"); }
+  }
+  if (tele.board2 && typeof tele.board2 === "object") {
+    const b2 = out.board2 = { ...tele.board2 };
+    if (!num(b2.temp2_c)) {
+      b2.temp2_c = DEMO_VALUES.temp2_c; filled.push("temp2");
+      if (b2.fault_text === "local_sensor") { b2.fault = 0; b2.fault_text = "ok"; b2.reasons = 0; }
+    }
+    if (!num(b2.ctrl_temp_c)) { b2.ctrl_temp_c = DEMO_VALUES.temp1_c; filled.push("ctrl_temp"); }
+    if (b2.ctrl_src === "local") b2.ctrl_src = "core"; // 플랜B는 항상 local을 보낸다. 평소 문구가 나오게
+  }
+  out._demo = filled;
+  return out;
+}
+
 // 카드에 표시하는 값(없으면 null)
 export const co2CardValue = (b1) => (co2Valid(b1) ? b1.co2_ppm : null);
 export const tempCardValue = (b1) => (Number.isFinite(b1?.temp1_c) ? b1.temp1_c : null);
