@@ -24,6 +24,9 @@ export const CO2_MOOD = 700;
 export const co2MoodBad = (b1) => co2Valid(b1) && b1.co2_ppm >= CO2_MOOD;
 // 돼지 얼굴은 CO₂만으로 정한다. 끊김이나 CO₂ 무효는 기본 얼굴
 export const co2Face = (state, b1) => (state === "sleep" || !co2Valid(b1) ? "base" : co2MoodBad(b1) ? "angry" : "happy");
+// 기분 좋을 때 돼지 움직임: happy=방방(기본), calm=차분. 경고 흔들림 등 다른 상태는 그대로
+export const goodMotionOf = (v) => (v === "calm" ? "calm" : "happy");
+export const pigStill = (motion, state, face) => goodMotionOf(motion) === "calm" && state === "calm" && face === "happy";
 // 알림 팝업: 기준 미만 → 이상으로 넘을 때만 show. 무효값은 이전 상태 유지. 처음 상태 high=false라 첫 유효값이 이상이면 뜬다
 export function co2AlarmStep(high, b1) {
   if (!co2Valid(b1)) return { high, show: false };

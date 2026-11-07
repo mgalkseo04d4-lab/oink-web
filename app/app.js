@@ -1,6 +1,6 @@
 // Oink 사용자용 웹앱: 브라우저가 wss로 브로커에 직접 접속(서버 없음). 판정 로직은 logic.mjs
 import { play, soundOn, setSoundOn } from "./sound.js";
-import { fillDemoSensors, co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
+import { goodMotionOf, pigStill, fillDemoSensors, co2Face, co2AlarmStep, rate, co2Slope, decompProgress, decompStage, co2TrendText, addFeed, homeState, homeText, stateEvents, addEvents, recent,
   DEMO_SPEED, DECOMP_END_H, PEAK_H, AMP_DEFAULT, curveH, predictPpm, activity, capPoints, hotFoodStep, hotHeaterGuard, HOT_MSG_OFF, HOT_MSG_AUTO, HOT_MSG_BLOCKED, autoRange, CO2_MAX, HOLD_RESEND_MS,
   heatModeOf, heaterCmds, restoreMode, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   DB_RAW_MS, db1mPoints, joinAggRaw, dbEvents, mergeEvents, faultWord, deviceNote, ctrlTargetOf, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, tempCardValue, odorCard, LOCAL_TARGET_C,
@@ -28,6 +28,7 @@ const KEY_CO2 = "oink.app.co2log";   // 실측 CO₂ 기록(재방문 시 유지
 const KEY_BASE = "oink.app.co2base"; // { feedTs, base } 투입 직후 첫 유효 CO₂
 const KEY_AMP = "oink.app.amp";
 const KEY_DEMO = "oink.app.demo";
+const KEY_GOOD_MOTION = "oink.app.goodMotion";
 const KEY_PREHOT = "oink.app.prehot"; // 뜨거운 음식물 감지 직전 히터 모드(복귀 때 ECO 유지용)
 const KEY_HOT = "oink.app.hot";      // 뜨거운 음식물 감지 상태(앱을 다시 열어도 복귀 판단 이어짐)
 const BROKER = "wss://o9f10aca.ala.asia-southeast1.emqxsl.com:8084/mqtt"; // 주소 고정(로그인 화면에 칸 없음)
@@ -55,6 +56,7 @@ let lastHoldSend = 0;
 let co2Base = loadJson(KEY_BASE, null);
 let amp = Number(store.get(KEY_AMP)) || AMP_DEFAULT;
 let demo = store.get(KEY_DEMO) === "1";
+let goodMotion = goodMotionOf(store.get(KEY_GOOD_MOTION));
 let hotSt = loadJson(KEY_HOT, null);
 let predSpanH = 24; // 분석 화면 x축: 하루(24h) / 일주일(DECOMP_END_H)
 let pendingHeat = null; // { want, ids, acks, sentAt, auto }
@@ -304,7 +306,7 @@ function render() {
   // 표정 이미지(logic co2Face): CO₂ 기준 미만=웃음, 이상=화남, 무효·끊김=기본(끊김은 회색)
   const linked = !!(client?.connected && gw.online);
   const face = co2Face(hs.state, b1);
-  const pigCls = `pig ${hs.state}${hs.state === "sleep" && !linked ? " off" : ""}`;
+  const pigCls = `pig ${hs.state}${hs.state === "sleep" && !linked ? " off" : ""}${pigStill(goodMotion, hs.state, face) ? " still" : ""}`;
   const pig = $("pig");
   if (pig.dataset.face !== face) {
     pig.dataset.face = face; pig.src = `img/pig_${face}.webp`;
@@ -493,6 +495,14 @@ function setDemo(on) {
 }
 setDemo(demo);
 $("demoToggle").addEventListener("click", () => { setDemo(!demo); render(); });
+function showGoodMotion() {
+  $("motionHappy").setAttribute("aria-pressed", String(goodMotion === "happy"));
+  $("motionCalm").setAttribute("aria-pressed", String(goodMotion === "calm"));
+}
+function setGoodMotion(v) { goodMotion = goodMotionOf(v); store.set(KEY_GOOD_MOTION, goodMotion); showGoodMotion(); render(); }
+showGoodMotion();
+$("motionHappy").addEventListener("click", () => setGoodMotion("happy"));
+$("motionCalm").addEventListener("click", () => setGoodMotion("calm"));
 // 효과음: 사용자 탭에만 반응(데이터 수신·경고에는 소리 없음). 투입 버튼은 기록 성공 때 짤랑만
 function showSound() { $("soundToggle").classList.toggle("on", soundOn()); $("soundToggle").setAttribute("aria-pressed", String(soundOn())); }
 showSound();

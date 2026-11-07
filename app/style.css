@@ -279,6 +279,8 @@ button.danger { background: var(--critical-soft); }
 .pig.sleep.off { filter: grayscale(1) opacity(.75); }
 .pig.pop { animation: squash .5s var(--spring); }
 .pig.calm.pop { animation: squash .5s var(--spring), breathe 3.2s ease-in-out .5s infinite; }
+.pig.calm.still { animation: none; }
+.pig.calm.still.pop { animation: squash .5s var(--spring); }
 @keyframes breathe { 50% { transform: translateY(-5px) scale(1.015, .99); } }
 @keyframes squash { 0% { transform: scale(1, 1); } 30% { transform: scale(1.12, .86); } 60% { transform: scale(.94, 1.08); } 100% { transform: scale(1, 1); } }
 /* 탭 눌림: 표정·숨쉬기 애니메이션이 걸린 img를 건드리지 않게 감싸는 칸에. 이미지 가로 중앙 = 몸통 축, 99% = 발바닥(세 표정 불투명 바닥 98.9~99.8%) */

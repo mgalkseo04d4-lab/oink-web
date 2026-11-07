@@ -1,7 +1,7 @@
 // node webapp/selfcheck.mjs — logic.mjs 판정 확인
 import assert from "node:assert/strict";
 import { co2Slope, mood, decompProgress, decompStage, co2TrendText, addFeed, odorWord, STALE_MS,
-  co2MoodBad, co2Face, co2AlarmStep, CO2_MOOD, homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
+  goodMotionOf, pigStill, co2MoodBad, co2Face, co2AlarmStep, CO2_MOOD, homeState, homeText, stateEvents, addEvents, recent, TEMP_ALERT, CO2_ALERT,
   rate, PEAK_H, predictPpm, CO2_MAX, activity, capPoints, hotFoodHit, hotFoodStep, HOT_COOLDOWN_MS, HOT_MAX_MS, DEMO_SPEED, curveH, autoRange,
   heatModeOf, heaterCmds, restoreMode, ECO_TARGET, AUTO_TARGET, dbCo2Points, mergeCo2, pickFeedTs, dqBadge,
   db1mPoints, joinAggRaw, dbEvents, dbEventText, mergeEvents, EVENT_MAX, faultWord, deviceNote, ctrlTargetOf, LOCAL_CTRL_TEXT, isTwoBoard, b1SrcLabel, srcBadge, co2CardValue, co2Warm, co2Valid, tempCardValue, odorCard, hotHeaterGuard, latchStatus,
@@ -63,6 +63,15 @@ assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 699 }), false); // 표정 기�
 assert.equal(co2MoodBad({ co2_status: 1, co2_ppm: 700 }), true);
 // 표정: CO₂만으로. 온도 이상이나 대체 제어와 무관
 const c1 = (co2_ppm, co2_status = 1) => ({ co2_ppm, co2_status });
+assert.equal(goodMotionOf("calm"), "calm");
+assert.equal(goodMotionOf("happy"), "happy");
+assert.equal(goodMotionOf(""), "happy");
+assert.equal(goodMotionOf("x"), "happy");
+assert.equal(pigStill("calm", "calm", "happy"), true);
+assert.equal(pigStill("happy", "calm", "happy"), false);
+assert.equal(pigStill("calm", "calm", "angry"), false);
+assert.equal(pigStill("calm", "alert", "happy"), false);
+assert.equal(pigStill("calm", "sleep", "base"), false);
 assert.equal(co2Face("calm", c1(699)), "happy");
 assert.equal(co2Face("calm", c1(700)), "angry");
 assert.equal(co2Face("local", c1(699)), "happy");
